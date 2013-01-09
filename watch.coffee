@@ -8,13 +8,14 @@ Array.prototype.diff = (arr) ->
 
 class Watcher
 
-  tree: []
-  index: {}
-  approach: {}
+  struct: []
+  cache: {}
+
+  changes: {}
+  renamed: {}
+
   depth: 0
   step: 0
-
-  renamed: {}
 
   handlers: 
     create: ->
@@ -33,16 +34,16 @@ class Watcher
     parts.join('/')
 
   exists: (depth = @depth, files = []) ->
-    files.push key.slice (key.lastIndexOf('/') + 1) for key, val of @tree[depth]; files
+    files.push key.slice (key.lastIndexOf('/') + 1) for key, val of @struct[depth]; files
 
   subpaths: (depth = @depth, parent_path, paths = []) ->
-    paths.push path for path, file of @tree[depth]; paths
+    paths.push path for path, file of @struct[depth]; paths
 
   files: (dir) ->
     fs.readdirSync(dir)
 
   dirs: (files = []) ->
-    files.push file for file, stat of @tree[@depth] when stat.isDirectory(); files  
+    files.push file for file, stat of @struct[@depth] when stat.isDirectory(); files  
 
   on: (action, handler) ->
     @handlers[action] = handler
@@ -54,13 +55,13 @@ class Watcher
 
   watch: (dir) ->
     
-    @tree[@depth] ?= {}
-    @index[dir] = @depth
+    @struct[@depth] ?= {}
+    @cache[dir] = @depth
 
     # # console.log "DEPTH", @depth
 
     # Обнулить данные об изменениях для текущего прохода
-    @approach = 
+    @changes = 
       change: []
       remove: []
       create: []
@@ -76,7 +77,7 @@ class Watcher
 
     for file in created
       path = @path(dir, file)
-      @approach['create'].push [path, @stat path]
+      @changes['create'].push [path, @stat path]
 
     # - - - - - - - - - - - - - - - 
 
@@ -88,31 +89,31 @@ class Watcher
 
       for file in removed
         path = @path(dir, file)
-        @approach['remove'].push [path]
+        @changes['remove'].push [path]
 
       for file in current.diff(removed)
         @check @path(dir, file)
 
       # watch for renamed
-      if @approach['remove'].length == @approach['create'].length and @approach['remove'].length is 1
+      if @changes['remove'].length == @changes['create'].length and @changes['remove'].length is 1
         
-        prev = @approach['remove'][0]
-        curr = @approach['create'][0]
+        prev = @changes['remove'][0]
+        curr = @changes['create'][0]
 
-        @approach['rename'].push [prev[0], curr[0], curr[1]]
+        @changes['rename'].push [prev[0], curr[0], curr[1]]
 
-        @approach['remove'] = []
-        @approach['create'] = []
+        @changes['remove'] = []
+        @changes['create'] = []
 
     # - - - - - - - - - - - - - - - 
 
-    for type, actions of @approach
+    for type, actions of @changes
       for action in actions
         results = @[type](action...)
         if results and @step > 0
           @handlers[type](results...) 
 
-      # # console.log @approach
+      # # console.log @changes
 
     subdirs = @dirs()
 
@@ -132,13 +133,13 @@ class Watcher
     @step++
 
   change: (path, prev, curr) ->
-    # # console.log 'change', path, prev, curr
+    console.log '- change:', path
     @add path, @depth, curr
     [path, prev, curr]
 
   remove: (path, depth = @depth, removed = null) ->
     
-    # console.log 'remove', path
+    console.log '- remove', path unless removed? or @renamed?
     
     prev = @get(path) || removed
 
@@ -176,30 +177,30 @@ class Watcher
       false
 
   create: (path) ->
-    # # console.log 'create', path, curr
+    console.log '-', (if @step is 0 then 'watch' else 'create:'), path
     [path, @add path]
 
   rename: (prevPath, currPath, curr) ->
-    # console.log 'rename', prevPath, currPath, curr
+    console.log '- rename', prevPath, '->', currPath
     @renamed[@depth] = [prevPath, currPath]
     @remove prevPath
     @add currPath
     [prevPath, currPath, curr]
 
   get: (path, depth = @depth) ->
-    unless @tree[depth]?
+    unless @struct[depth]?
       false
     else
-      @tree[depth][path] || false
+      @struct[depth][path] || false
 
   add: (path, depth = @depth, stat = null) ->
     stat = @stat(path) unless stat?
-    @tree[depth][path] = stat
+    @struct[depth][path] = stat
     stat
 
   unset: (path, depth = @depth) ->
-    if @tree[depth][path]?
-      delete @tree[depth][path] 
+    if @struct[depth][path]?
+      delete @struct[depth][path] 
 
   stat: (path) ->
     fs.statSync(path)
@@ -211,14 +212,14 @@ class Watcher
       curr = @stat(path)
 
       if curr.ctime.getTime() isnt prev.ctime.getTime()
-        @approach['change'].push [path, prev, curr]
+        @changes['change'].push [path, prev, curr]
 
 
   run: ->
     @watch(@root)
     setInterval( =>
       @watch(@root)
-      # # console.log 'TREE -', @tree
+      # # console.log 'struct -', @struct
       # # console.log '==============================================================================================='
     , @speed)
     

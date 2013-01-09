@@ -13,17 +13,17 @@
 
   Watcher = (function() {
 
-    Watcher.prototype.tree = [];
+    Watcher.prototype.struct = [];
 
-    Watcher.prototype.index = {};
+    Watcher.prototype.cache = {};
 
-    Watcher.prototype.approach = {};
+    Watcher.prototype.changes = {};
+
+    Watcher.prototype.renamed = {};
 
     Watcher.prototype.depth = 0;
 
     Watcher.prototype.step = 0;
-
-    Watcher.prototype.renamed = {};
 
     Watcher.prototype.handlers = {
       create: function() {},
@@ -53,7 +53,7 @@
       if (files == null) {
         files = [];
       }
-      _ref = this.tree[depth];
+      _ref = this.struct[depth];
       for (key in _ref) {
         val = _ref[key];
         files.push(key.slice(key.lastIndexOf('/') + 1));
@@ -69,7 +69,7 @@
       if (paths == null) {
         paths = [];
       }
-      _ref = this.tree[depth];
+      _ref = this.struct[depth];
       for (path in _ref) {
         file = _ref[path];
         paths.push(path);
@@ -86,7 +86,7 @@
       if (files == null) {
         files = [];
       }
-      _ref = this.tree[this.depth];
+      _ref = this.struct[this.depth];
       for (file in _ref) {
         stat = _ref[file];
         if (stat.isDirectory()) {
@@ -121,11 +121,11 @@
 
     Watcher.prototype.watch = function(dir) {
       var action, actions, created, curr, current, file, path, prev, removed, results, subdirs, type, _base, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _m, _name, _ref, _ref1, _ref2, _ref3;
-      if ((_ref = (_base = this.tree)[_name = this.depth]) == null) {
+      if ((_ref = (_base = this.struct)[_name = this.depth]) == null) {
         _base[_name] = {};
       }
-      this.index[dir] = this.depth;
-      this.approach = {
+      this.cache[dir] = this.depth;
+      this.changes = {
         change: [],
         remove: [],
         create: [],
@@ -136,29 +136,29 @@
       for (_i = 0, _len = created.length; _i < _len; _i++) {
         file = created[_i];
         path = this.path(dir, file);
-        this.approach['create'].push([path, this.stat(path)]);
+        this.changes['create'].push([path, this.stat(path)]);
       }
       if (this.step > 0) {
         removed = this.exists().diff(current);
         for (_j = 0, _len1 = removed.length; _j < _len1; _j++) {
           file = removed[_j];
           path = this.path(dir, file);
-          this.approach['remove'].push([path]);
+          this.changes['remove'].push([path]);
         }
         _ref1 = current.diff(removed);
         for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
           file = _ref1[_k];
           this.check(this.path(dir, file));
         }
-        if (this.approach['remove'].length === this.approach['create'].length && this.approach['remove'].length === 1) {
-          prev = this.approach['remove'][0];
-          curr = this.approach['create'][0];
-          this.approach['rename'].push([prev[0], curr[0], curr[1]]);
-          this.approach['remove'] = [];
-          this.approach['create'] = [];
+        if (this.changes['remove'].length === this.changes['create'].length && this.changes['remove'].length === 1) {
+          prev = this.changes['remove'][0];
+          curr = this.changes['create'][0];
+          this.changes['rename'].push([prev[0], curr[0], curr[1]]);
+          this.changes['remove'] = [];
+          this.changes['create'] = [];
         }
       }
-      _ref2 = this.approach;
+      _ref2 = this.changes;
       for (type in _ref2) {
         actions = _ref2[type];
         for (_l = 0, _len3 = actions.length; _l < _len3; _l++) {
@@ -183,6 +183,7 @@
     };
 
     Watcher.prototype.change = function(path, prev, curr) {
+      console.log('- change:', path);
       this.add(path, this.depth, curr);
       return [path, prev, curr];
     };
@@ -194,6 +195,9 @@
       }
       if (removed == null) {
         removed = null;
+      }
+      if (!((removed != null) || (this.renamed != null))) {
+        console.log('- remove', path);
       }
       prev = this.get(path) || removed;
       this.unset(path, depth);
@@ -223,10 +227,12 @@
     };
 
     Watcher.prototype.create = function(path) {
+      console.log('-', (this.step === 0 ? 'watch' : 'create:'), path);
       return [path, this.add(path)];
     };
 
     Watcher.prototype.rename = function(prevPath, currPath, curr) {
+      console.log('- rename', prevPath, '->', currPath);
       this.renamed[this.depth] = [prevPath, currPath];
       this.remove(prevPath);
       this.add(currPath);
@@ -237,10 +243,10 @@
       if (depth == null) {
         depth = this.depth;
       }
-      if (this.tree[depth] == null) {
+      if (this.struct[depth] == null) {
         return false;
       } else {
-        return this.tree[depth][path] || false;
+        return this.struct[depth][path] || false;
       }
     };
 
@@ -254,7 +260,7 @@
       if (stat == null) {
         stat = this.stat(path);
       }
-      this.tree[depth][path] = stat;
+      this.struct[depth][path] = stat;
       return stat;
     };
 
@@ -262,8 +268,8 @@
       if (depth == null) {
         depth = this.depth;
       }
-      if (this.tree[depth][path] != null) {
-        return delete this.tree[depth][path];
+      if (this.struct[depth][path] != null) {
+        return delete this.struct[depth][path];
       }
     };
 
@@ -276,7 +282,7 @@
       if ((prev = this.get(path)) && !prev.isDirectory()) {
         curr = this.stat(path);
         if (curr.ctime.getTime() !== prev.ctime.getTime()) {
-          return this.approach['change'].push([path, prev, curr]);
+          return this.changes['change'].push([path, prev, curr]);
         }
       }
     };
@@ -293,7 +299,7 @@
 
   })();
 
-  watcher = new Watcher('app');
+  watcher = new Watcher('testdir');
 
   watcher.on('create', function(path, file) {
     return console.log('>>> CREATED', path);
