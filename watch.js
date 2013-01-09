@@ -28,7 +28,9 @@
     Watcher.prototype.handlers = {
       create: function() {},
       remove: function() {},
-      change: function() {},
+      change: function() {
+        return sdf;
+      },
       rename: function() {}
     };
 
