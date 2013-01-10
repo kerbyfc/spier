@@ -1,5 +1,8 @@
 {
-  "name": "Watch",
+  "name": "watcher",
   "version": "0.0.1",
-  "private": true
+  "bin": {
+      "watcher": "bin/watcher"
+  },
+  "main": "watch.js"
 }

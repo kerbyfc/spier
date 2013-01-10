@@ -19,11 +19,9 @@ class File
     stat = File::stat path
     if stat.isDirectory() then new Dir(path, stat) else new File(path, stat)
 
-  name: ->
-    @path.split(Dir::separator).slice(-1)[0]
-
   constructor: (path, stat) ->
     @path = path
+    @name = @path.split(Dir::separator).slice(-1)[0]
     @stat = stat
 
 class Dir
@@ -33,10 +31,8 @@ class Dir
   constructor: (path, stat) ->
     @files = {}
     @path = path
+    @name = @path.split(Dir::separator).slice(-1)[0]
     @stat = stat
-
-  name: ->
-    @path.split(Dir::separator).slice(-1)[0]
 
   read: ->
     @files[name] = File::new(@path, name) for name in fs.readdirSync(@path)
@@ -58,6 +54,7 @@ class Dir
   rename: (oldname, newname) ->
     @files[newname] = @files[oldname]
     @files[newname].path = File::path @path, newname
+    @files[newname].name = newname
     delete @files[oldname]
     [File::path(@path, oldname), @files[newname].path, @files[newname]]
 
@@ -130,5 +127,5 @@ class Watcher
       handler(arguments...) unless @step is 0
     this
 
-return Watcher
+module.exports = Watcher
 

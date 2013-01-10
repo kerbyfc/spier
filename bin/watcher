@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+
+Watcher = require('../watch.js');
+
+var similar = ['create', 'remove', 'change'];
+
+w = new Watcher(process.argv[2]);
+
+ctype = function (file) {
+    return file.stat.isDirectory() ? 'directory' : 'file';
+}
+
+for (var i in similar) {
+    var event = similar[i];
+    w.on( event, function (file) {
+        console.log( event + ' ' +  ctype(file) + ' ' + file.path );
+    });
+}
+
+w.on( 'create', function (file) {
+    console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
+});
+w.on( 'remove', function (file) {
+    console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
+});
+w.on( 'chage', function (file) {
+    console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
+});
+w.on( 'rename', function (from, to, file) {
+    console.log( 'rename', ctype(file), from, to );
+});
+
+w.start();

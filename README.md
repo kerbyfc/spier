@@ -4,7 +4,7 @@ Watcher
  
 
 <br />
-**It detects directory changes, such as**
+**It detects any changes in directory, such as**
 
 - create
 - remove
@@ -19,12 +19,12 @@ Watcher
 <br />
 ### Usage
 
-    require 'watcher'
+    Watcher = require('watcher');
     
-    w = new Watcher('mydir')
+    w = new Watcher('dir');
     
     w.on('create', function (file) {
-        console.log( file.stat.isDirectory() ? 'directory' : 'file', file.name, ' created' );
+        console.log( file.stat.isDirectory() ? 'directory' : 'file', file.name, 'created [', file.path, ']' );
     });
     
     w.start();

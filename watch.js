@@ -37,12 +37,9 @@
       }
     };
 
-    File.prototype.name = function() {
-      return this.path.split(Dir.prototype.separator).slice(-1)[0];
-    };
-
     function File(path, stat) {
       this.path = path;
+      this.name = this.path.split(Dir.prototype.separator).slice(-1)[0];
       this.stat = stat;
     }
 
@@ -57,12 +54,9 @@
     function Dir(path, stat) {
       this.files = {};
       this.path = path;
+      this.name = this.path.split(Dir.prototype.separator).slice(-1)[0];
       this.stat = stat;
     }
-
-    Dir.prototype.name = function() {
-      return this.path.split(Dir.prototype.separator).slice(-1)[0];
-    };
 
     Dir.prototype.read = function() {
       var name, _i, _len, _ref;
@@ -100,6 +94,7 @@
     Dir.prototype.rename = function(oldname, newname) {
       this.files[newname] = this.files[oldname];
       this.files[newname].path = File.prototype.path(this.path, newname);
+      this.files[newname].name = newname;
       delete this.files[oldname];
       return [File.prototype.path(this.path, oldname), this.files[newname].path, this.files[newname]];
     };
@@ -250,6 +245,6 @@
 
   })();
 
-  return Watcher;
+  module.exports = Watcher;
 
 }).call(this);
