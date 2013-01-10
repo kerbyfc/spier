@@ -30,101 +30,139 @@ class File extends Cacheable
   File::path = (parts...) ->
     parts.join Dir::separator
 
-  constructor: (@dir, @name) ->
-    @path = @dir + Dir::separator + @name
-    @stat = File::stat @path
+  File::new = (parts...) ->
+    path = File::path parts...
+    stat = File::stat path
+    if stat.isDirectory() then new Dir(path, stat) else new File(path, stat)
+
+  name: ->
+    @path.split(Dir::separator).slice(-1)[0]
+
+  constructor: (path, stat) ->
+    @path = path
+    @stat = stat
 
 class Dir extends Cacheable
 
+  files: {}
+
   Dir::separator = if process.platform.match(/^win/)? then '\\' else '/'
 
-  constructor: (@path) ->
-    @files = (new File(@path, filename) for filename in fs.readdirSync(@path)) || []
+  constructor: (path, stat) ->
+    @path = path
+    @stat = stat
 
-  get: (attr) ->
-    unless @actual(attr)
-      @cache attr, (file[attr] for file in @files)
-    else
-      @cache attr
+  name: ->
+    @path.split(Dir::separator).slice(-1)[0]
 
-  filenames: ->
-    @get 'name'
-
-  filepaths: ->
-    @get 'path'
-
-  sub: ->
-    file.path for file in @files when file.stat.isDirectory()
-
-class Slice extends Cacheable
-
-  constructor: (depth) ->
-    @depth = depth
-    @files = {}
-    @events = {}
-
-  existing: (dir) ->
-    (file.name for path, file of @files when file.path.indexOf dir is 0) || []
-
-  get: (path) ->
-    @files[path]
+  read: ->
+    @files[name] = File::new(@path, name) for name in fs.readdirSync(@path)
+    this
 
   invoke: (event, data...) ->
     @[event](data...)
-    @events[event] = data
+    console.log "Watcher#{event}", Watcher::[event]
+    Watcher::[event](data...)
 
-  create: (file, silence = false) ->
-    @files[file.path] = file
-    console.log 'create', file.path unless silence
+  create: (filename) ->
+    @files[filename] = File::new @path, filename
 
-  remove: (file, silence = false) ->
-    delete @files[file.path]
-    console.log 'remove', file.path unless silence
+  remove: (filename) ->
+    delete @files[filename]
 
-  rename: (prev, curr) ->
-    @create curr, true
-    @remove prev, true
-    console.log 'rename', prev.path, 'to', curr.path
+  rename: (oldname, newname) ->
+    @files[newname] = @files[oldname]
+    delete @files[oldname]
 
-#  cleanup: (dir) ->
-#
-##    parent = @watcher.slice (@depth-1)
-##    renamed = parent.events['renaming']
-##    removed = parent.events['removing']
-##
-##    if renamed?
-##      for data in renamed
-##        for file in @existing(dir.path)
-##          if file.indexOf data[0] is 0
-##            prev =
-##            curr = file.replace(data[0].dir, new File data[1].path
-##          @invoke 'renaming', data[0], @file.replace(data[0], data[1])
+  filenames: ->
+    name for name, file of @files
+
+  filepaths: ->
+    file.path for name, file of @files
+
+  directories: ->
+    file for name, file of @files when file.stat.isDirectory()
 
   diff: (dir) ->
 
-    console.log "->", dir.path
+    console.log "WATCH", @path
 
-    @events = {}
+    created = dir.filenames().diff @filenames()
+    removed = @filenames().diff dir.filenames()
 
-    existing = @existing(dir.path)
-    created = dir.filenames().diff(existing)
+    console.log 'created', created
+    console.log 'removed', removed
 
-    if Watcher::step > 0
+    if removed.length is created.length and created.length is 1
 
-      removed = existing.diff dir.filenames()
-
-      if removed.length is created.length and created.length is 1
-
-        @invoke 'rename', @get(File::path dir.path, removed[0]), (new File(dir.path, created[0]))
-
-      else
-
-        @invoke 'create', new File(dir.path, file) for file in created
-        @invoke 'remove', @get(File::path dir.path, file) for file in removed
+      @invoke 'rename', removed[0], created[0]
 
     else
 
-      @invoke 'create', new File(dir.path, file) for file in created
+      @invoke 'create', file for file in created
+      @invoke 'remove', file for file in removed
+
+    subdirs = @directories()
+
+    console.log ' >> ', subdirs
+
+    if subdirs.length > 0
+
+
+
+      for subdir in subdirs
+        subdir.diff File::new(subdir.path).read()
+
+
+# class Slice extends Cacheable
+
+#   constructor: (depth, watcher) ->
+#     @watcher = watcher
+#     @depth = depth
+#     @files = {}
+#     @events = {}
+
+#   existing: (dir) ->
+#     (file.name for path, file of @files when file.path.indexOf dir is 0) || []
+
+#   get: (path) ->
+#     @files[path]
+
+#   invoke: (event, data...) ->
+#     @[event](data...)
+#     @events[event] = data
+
+#   create: (file, silence = false) ->
+#     @files[file.path] = file
+#     console.log 'create', file.path unless silence
+
+#   remove: (path, silence = false) ->
+#     file = @get(path)
+#     delete @files[path]
+#     if file.isDirectory()
+#       @watcher.slice(@depth+1).remove(file) for file in file.filepaths
+#     console.log 'remove', file.path unless silence
+
+#   rename: (prev, curr) ->
+#     @create curr, true
+#     @remove prev, true
+#     console.log 'rename', prev.path, 'to', curr.path
+
+# #  cleanup: (dir) ->
+# #
+# ##    parent = @watcher.slice (@depth-1)
+# ##    renamed = parent.events['renaming']
+# ##    removed = parent.events['removing']
+# ##
+# ##    if renamed?
+# ##      for data in renamed
+# ##        for file in @existing(dir.path)
+# ##          if file.indexOf data[0] is 0
+# ##            prev =
+# ##            curr = file.replace(data[0].dir, new File data[1].path
+# ##          @invoke 'renaming', data[0], @file.replace(data[0], data[1])
+
+
 
 
 class Watcher
@@ -226,32 +264,33 @@ class Watcher
   speed: 1000
 
   # specify watched directory
-  constructor: (@root = 'app') ->
-    @watch(@root)
+  constructor: (root = 'app') ->
+    @root = File::new root
+    unless @root.stat.isDirectory()
+      throw new Error('Directory was expected') 
 
-  slice: ->
-    @_struct[@depth] || null
+  # slice: ->
+  #   @_struct[@depth] || null
 
-  watch: (path) ->
+  watch: -> # TODO remove argument
 
-    unless @slice()?
-      @_struct[@depth] = new Slice(@depth)
+    dir = File::new(@root.path).read()
+    @root.diff dir
+    
 
-    dir = new Dir path
+    # @slice().diff dir
 
-    @slice().diff dir
+    # if dir.directories().length
 
-    if dir.sub().length
+    #   @depth++
 
-      @depth++
+    #   for directory in dir.directories()
 
-      for sub in dir.sub()
+    #     @watch directory.path
 
-        @watch sub
+    #   @depth--
 
-      @depth--
-
-    Watcher::step++
+    # Watcher::step++
 
 
 
@@ -323,8 +362,8 @@ class Watcher
 #  dirs: (files = []) ->
 #    files.push file for file, stat of @struct[@depth] when stat.isDirectory(); files
 #
-  on: (action, handler) ->
-    @handlers[action] = handler
+  on: (event, handler) ->
+    Watcher::[event] = handler
     this
 #
 #  subs: (depth = @depth, path, files = []) ->
@@ -337,12 +376,15 @@ class Watcher
 
 
   run: ->
-    @watch(@root)
     setInterval( =>
-      @watch(@root)
-      # # console.log 'struct -', @struct
-      # # console.log '==============================================================================================='
+      @watch()
     , @speed)
+    setInterval( => 
+      console.log "TREE ============================"
+      for depth, slice of @_struct
+        console.log " >> ", depth, slice
+      console.log "TREE ============================"
+    , 5000)
     
 
 watcher = new Watcher('testdir')
