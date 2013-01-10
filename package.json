@@ -1,6 +1,7 @@
 {
   "name": "watcher",
   "version": "0.0.1",
+  "description": "detects any changes in directory",
   "bin": {
       "watcher": "bin/watcher"
   },
@@ -12,7 +13,7 @@
   ],
   "repository": {
     "type": "git",
-    "url" : ""
+    "url" : "https://github.com/kerbyfc/watcher.git"
   },
   "main": "watch.js"
 }
