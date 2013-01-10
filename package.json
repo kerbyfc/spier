@@ -4,5 +4,15 @@
   "bin": {
       "watcher": "bin/watcher"
   },
+  "keywords": [
+    "watcher",
+    "watch",
+    "dir",
+    "fs"
+  ],
+  "repository": {
+    "type": "git",
+    "url" : ""
+  },
   "main": "watch.js"
 }
