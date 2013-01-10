@@ -20,13 +20,26 @@ Watcher
 ### Usage
 
     Watcher = require('watcher');
-    
-    w = new Watcher('dir');
-    
-    w.on('create', function (file) {
-        console.log( file.stat.isDirectory() ? 'directory' : 'file', file.name, 'created [', file.path, ']' );
+
+    w = new Watcher('src');
+
+    ctype = function (file) {
+        return file.stat.isDirectory() ? 'directory' : 'file';
+    };
+
+    w.on( 'create', function (file) {
+        console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
     });
-    
+    w.on( 'remove', function (file) {
+        console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
+    });
+    w.on( 'change', function (file) {
+        console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
+    });
+    w.on( 'rename', function (from, to, file) {
+        console.log( 'rename', ctype(file), from, to );
+    });
+
     w.start();
     
 <br />
