@@ -102,12 +102,12 @@ class Spier
   constructor: (root = null) ->
     throw new Error('Specify directory path for spying') unless root?
     @scope = File::new root
-    unless @root.stat.isDirectory()
+    unless @scope.stat.isDirectory()
       throw new Error(root + ' is not a directory')
     this
 
   lookout: ->
-    reality = File::new(@root.path).read()
+    reality = File::new(@scope.path).read()
     @scope.compare reality
     unless @pause
       setTimeout( =>
@@ -115,10 +115,10 @@ class Spier
         @step++
       , @delay)
 
-  stop: ->
+  pause: ->
     @pause = true
 
-  start: ->
+  spy: ->
     @step = 0
     @pause = false
     @lookout()

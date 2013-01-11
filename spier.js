@@ -204,7 +204,7 @@
         throw new Error('Specify directory path for spying');
       }
       this.scope = File.prototype["new"](root);
-      if (!this.root.stat.isDirectory()) {
+      if (!this.scope.stat.isDirectory()) {
         throw new Error(root + ' is not a directory');
       }
       this;
@@ -214,7 +214,7 @@
     Spier.prototype.lookout = function() {
       var reality,
         _this = this;
-      reality = File.prototype["new"](this.root.path).read();
+      reality = File.prototype["new"](this.scope.path).read();
       this.scope.compare(reality);
       if (!this.pause) {
         return setTimeout(function() {
@@ -224,11 +224,11 @@
       }
     };
 
-    Spier.prototype.stop = function() {
+    Spier.prototype.pause = function() {
       return this.pause = true;
     };
 
-    Spier.prototype.start = function() {
+    Spier.prototype.spy = function() {
       this.step = 0;
       this.pause = false;
       return this.lookout();
