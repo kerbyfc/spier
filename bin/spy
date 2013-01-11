@@ -1,24 +1,24 @@
 #!/usr/bin/env node
 
-Watcher = require('../watch.js');
+Spier = require('../spier.js');
 
-w = new Watcher(process.argv[2]);
+spier = new Spier(process.argv[2]);
 
 ctype = function (file) {
     return file.stat.isDirectory() ? 'directory' : 'file';
 };
 
-w.on( 'create', function (file) {
+spier.on( 'create', function (file) {
     console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
 });
-w.on( 'remove', function (file) {
+spier.on( 'remove', function (file) {
     console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
 });
-w.on( 'change', function (file) {
+spier.on( 'change', function (file) {
     console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
 });
-w.on( 'rename', function (from, to, file) {
+spier.on( 'rename', function (from, to, file) {
     console.log( 'rename', ctype(file), from, to );
 });
 
-w.start();
+spier.spy();

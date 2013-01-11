@@ -198,11 +198,14 @@
 
     function Spier(root) {
       if (root == null) {
-        root = 'app';
+        root = null;
+      }
+      if (root == null) {
+        throw new Error('Specify directory path for spying');
       }
       this.scope = File.prototype["new"](root);
       if (!this.root.stat.isDirectory()) {
-        throw new Error('Specify directory path for spying');
+        throw new Error(root + ' is not a directory');
       }
       this;
 

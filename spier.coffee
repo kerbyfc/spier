@@ -99,10 +99,11 @@ class Spier
   pause: false
   step: 0
 
-  constructor: (root = 'app') ->
+  constructor: (root = null) ->
+    throw new Error('Specify directory path for spying') unless root?
     @scope = File::new root
     unless @root.stat.isDirectory()
-      throw new Error('Specify directory path for spying')
+      throw new Error(root + ' is not a directory')
     this
 
   lookout: ->

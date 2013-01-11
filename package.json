@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "spies for any changes directory (create, remove, rename, change)",
   "bin": {
-      "watcher": "bin/spy"
+      "spy": "bin/spy"
   },
   "keywords": [
     "spy",
