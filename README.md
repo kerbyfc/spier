@@ -1,10 +1,10 @@
-Watcher 
+Spier
 =========
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Version 1.0 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Version 1.0
  
 
 <br />
-**It detects any changes in directory, such as**
+**It spied for any changes in directory, such as**
 
 - create
 - remove
@@ -14,33 +14,33 @@ Watcher
 <br />
 
 ### Installation <br />
-    npm install -g watcher
+    npm install -g spier
     
 <br />
 ### Usage
 
-    Watcher = require('watcher');
+    Spier = require('spier');
 
-    w = new Watcher('src');
+    spier = new Spier('src');
 
     ctype = function (file) {
         return file.stat.isDirectory() ? 'directory' : 'file';
     };
 
-    w.on( 'create', function (file) {
+    spier.on( 'create', function (file) {
         console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
     });
-    w.on( 'remove', function (file) {
+    spier.on( 'remove', function (file) {
         console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
     });
-    w.on( 'change', function (file) {
+    spier.on( 'change', function (file) {
         console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
     });
-    w.on( 'rename', function (from, to, file) {
+    spier.on( 'rename', function (from, to, file) {
         console.log( 'rename', ctype(file), from, to );
     });
 
-    w.start();
+    spier.spy();
     
 <br />
 ### License

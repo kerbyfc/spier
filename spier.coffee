@@ -40,7 +40,7 @@ class Dir
 
   invoke: (event, data...) ->
     if (tmp = @[event](data...))
-      Watcher::[event](tmp...)
+      Spier::[event](tmp...)
 
   create: (filename) ->
     @files[filename] = File::new @path, filename
@@ -68,7 +68,7 @@ class Dir
   filepaths: -> file.path for name, file of @files
   directories: -> file for name, file of @files when file.stat.isDirectory()
 
-  watch: (dir) ->
+  compare: (dir) ->
 
     existed = @filenames()
     current = dir.filenames()
@@ -85,9 +85,9 @@ class Dir
     subdirs = @directories()
     if subdirs.length > 0
       for subdir in subdirs
-        subdir.watch File::new(subdir.path).read()
+        subdir.compare File::new(subdir.path).read()
 
-class Watcher
+class Spier
 
   handlers:
     create: ->
@@ -100,17 +100,17 @@ class Watcher
   step: 0
 
   constructor: (root = 'app') ->
-    @root = File::new root
+    @scope = File::new root
     unless @root.stat.isDirectory()
-      throw new Error('Directory was expected')
+      throw new Error('Specify directory path for spying')
     this
 
-  watch: ->
-    dir = File::new(@root.path).read()
-    @root.watch dir
+  lookout: ->
+    reality = File::new(@root.path).read()
+    @scope.compare reality
     unless @pause
       setTimeout( =>
-        @watch()
+        @lookout()
         @step++
       , @delay)
 
@@ -120,12 +120,12 @@ class Watcher
   start: ->
     @step = 0
     @pause = false
-    @watch()
+    @lookout()
 
   on: (event, handler) ->
-    Watcher::[event] = =>
+    Spier::[event] = =>
       handler(arguments...) unless @step is 0
     this
 
-module.exports = Watcher
+module.exports = Spier
 
