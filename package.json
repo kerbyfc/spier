@@ -1,20 +1,19 @@
 {
   "name": "spier",
   "version": "1.0.0",
-  "description": "spied for any changes directory (create, remove, rename, change)",
+  "description": "spies for any changes directory (create, remove, rename, change)",
   "bin": {
       "watcher": "bin/spy"
   },
   "keywords": [
-    "watchdir",
-    "watcher",
+    "spy",
+    "spier",
     "watch",
-    "dir",
-    "fs"
+    "wathcer"
   ],
   "repository": {
     "type": "git",
     "url" : "https://github.com/kerbyfc/spier.git"
   },
-  "main": "watch.js"
+  "main": "spier.js"
 }

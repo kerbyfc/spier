@@ -4,7 +4,7 @@ Spier
  
 
 <br />
-**It spied for any changes in directory, such as**
+**It spies for any changes in directory, such as**
 
 - create
 - remove
