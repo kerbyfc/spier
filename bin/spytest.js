@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 Spier = require('../spier.js');
 
