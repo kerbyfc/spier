@@ -99,12 +99,23 @@ class Spier
   pause: false
   step: 0
 
-  constructor: (root = null) ->
-    throw new Error('Specify directory path for spying') unless root?
+  options:
+    filter: null
+    ignore: null
+    hidden: null
+
+  constructor: (root = null, options) ->
+
+    unless root?
+      exit 'Specify directory path for spying. Use spy --help'
+
     @scope = File::new root
     unless @scope.stat.isDirectory()
-      throw new Error(root + ' is not a directory')
+      exit "#{root} is not a directory"
     this
+
+  setup: (options) ->
+    @options[key] = val for key, val of options
 
   lookout: ->
     reality = File::new(@scope.path).read()

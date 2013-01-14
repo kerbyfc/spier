@@ -8,7 +8,16 @@ optkeys = {
   '-d': 'dir',
   '--dir': 'dir',
   '-f': 'filter',
-  '--filter': 'filter'
+  '--filter': 'filter',
+  '-h': 'help',
+  '--help' : 'help'
+};
+
+keys = {
+    'dir': '-d --dir  specify directory to spy on',
+    'ignore': '-i --ignore  regex that explains what files will be ignored',
+    'filter': '-f --filter  regex that explains what files will be processed. applying after --ignore',
+    'help': '-h --help show this message'
 };
 
 args = process.argv.slice(2);
@@ -18,8 +27,6 @@ key = false;
 
 while (args.length) {
     arg = args.shift();
-    console.log( arg );
-    console.log( optkeys );
     if (arg.match(/^-*/g)[0].length > 0 && optkeys[arg] !== void(0)) {
         key = optkeys[arg];
         console.log( key );
@@ -30,8 +37,13 @@ while (args.length) {
     }
 };
 
-
-console.log(options);
+if (options.help !== void(0) || options.dir === void(0) || options.dir === null) {
+    help = 'spier help: ';
+    for (var i in keys) {
+        help += '\n - ' + keys[i];
+    };
+    exit(help);
+}
 
 spier = new Spier(options.dir, options);
 
