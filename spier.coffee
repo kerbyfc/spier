@@ -102,9 +102,8 @@ class Spier
   options:
     filter: null
     ignore: null
-    hidden: null
 
-  constructor: (root = null, options) ->
+  constructor: (root = null, options = {}) ->
 
     unless root?
       exit 'Specify directory path for spying. Use spy --help'
@@ -112,6 +111,9 @@ class Spier
     @scope = File::new root
     unless @scope.stat.isDirectory()
       exit "#{root} is not a directory"
+
+    @options[key] = val for key, val of options
+
     this
 
   setup: (options) ->
