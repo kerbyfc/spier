@@ -103,14 +103,22 @@ class Spier
     filter: null
     ignore: null
 
+  shutdown: (msg) ->
+    console.log msg
+    process.exit(0);
+
   constructor: (root = null, options = {}) ->
 
     unless root?
-      exit 'Specify directory path for spying. Use spy --help'
+      @shutdown 'Specify directory path for spying. Use spy --help'
 
-    @scope = File::new root
+    try
+      @scope = File::new root
+    catch err
+      @shutdown err.message
+
     unless @scope.stat.isDirectory()
-      exit "#{root} is not a directory"
+      @shutdown "#{root} is not a directory"
 
     @options[key] = val for key, val of options
 
@@ -120,13 +128,16 @@ class Spier
     @options[key] = val for key, val of options
 
   lookout: ->
-    reality = File::new(@scope.path).read()
-    @scope.compare reality
-    unless @pause
-      setTimeout( =>
-        @lookout()
-        @step++
-      , @delay)
+    try
+      reality = File::new(@scope.path).read()
+      @scope.compare reality
+      unless @pause
+        setTimeout( =>
+          @lookout()
+          @step++
+        , @delay)
+    catch err
+      @shutdown err.message unless @options.silence?
 
   pause: ->
     @pause = true
