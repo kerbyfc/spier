@@ -3,3 +3,4 @@ node_modules
 .idea/
 testdir
 .npmignore
+bin/spytest.js
