@@ -12,7 +12,7 @@ Spier <font size="2">1.1</font>
 
 ### Installation
 
-    npm install -g spier
+    $ npm install -g spier
 <br />
 
 ### Command line usage
