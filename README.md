@@ -1,10 +1,7 @@
-Spier
-=========
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Version 1.0
- 
+Spier <font size="2">1.1</font>
+========= 
 
-<br />
-**It spies for any changes in directory, such as**
+**Spies for any changes in directory, such as**
 
 - create
 - remove
@@ -13,36 +10,44 @@ Spier
 
 <br />
 
-### Installation <br />
+** Installation **
+
     npm install -g spier
-    
 <br />
-### Usage
+
+** Command line usage ** 
+
+    $ spy --help
+<br />
+
+** Command line usage example **
+
+    $ spy -d . --ignore .idea\|.git --filter \/js\/\|\/less\/
+<br />
+
+** Node.js usage **
 
     Spier = require('spier');
 
     spier = new Spier('src');
 
-    ctype = function (file) {
+    ftype = function (file) {
         return file.stat.isDirectory() ? 'directory' : 'file';
     };
 
     spier.on( 'create', function (file) {
-        console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
+        console.log( 'create' + ' ' +  ftype(file) + ' ' + file.path );
     });
     spier.on( 'remove', function (file) {
-        console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
+        console.log( 'remove' + ' ' +  ftype(file) + ' ' + file.path );
     });
     spier.on( 'change', function (file) {
-        console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
+        console.log( 'change' + ' ' +  ftype(file) + ' ' + file.path );
     });
     spier.on( 'rename', function (from, to, file) {
-        console.log( 'rename', ctype(file), from, to );
+        console.log( 'rename', ftype(file), from, to );
     });
 
     spier.spy();
     
 <br />
-### License
-
-MIT

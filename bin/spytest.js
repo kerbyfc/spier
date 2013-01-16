@@ -3,22 +3,28 @@ Spier = require('../spier.js');
 optkeys = {
     '-i': 'ignore',
     '--ignore': 'ignore',
+    '-if': 'ignore_flags',
+    '--i-flags': 'ignore_flags',
     '-d': 'dir',
     '--dir': 'dir',
-    '-o': 'original',
-    '--original': 'original',
+    '-e': 'existing',
+    '--existing': 'existing',
     '-f': 'filter',
+    '-ff': 'filter_flags',
+    '--f-flags': 'filter_flags',
     '--filter': 'filter',
     '-h': 'help',
     '--help' : 'help'
 };
 
 keys = {
-    'dir': '• -d --dir        <path>  - specify directory to spy on\n',
-    'ignore': '  -i --ignore     <regex> - explains what files will be ignored\n',
-    'filter': '  -f --filter     <regex> - explains what files will be processed. \n                              NOTE: applying after -i',
-    'original': '  -o --original\n',
-    'help': '  -h --help show this message\n'
+    'dir': '• -d --dir        <String> - Directory path to spy for\n                               Just use " -d . " to spy for current directory \n',
+    'ignore': '  -i --ignore     <RegExp> - Files to be ignored \n                               If you want to ignore git and idea folders, then specify `.idea\\|.git`\n',
+    'ignore_flags': '  -if --i-flags   <String> - RegExp flags for -i option (`g`,`i`)  \n',
+    'filter': '  -f --filter     <RegExp> - Files to be processed \n                               If you want to spy for files changes in `app` and `bin` folders, just specify: `app\\/\\|bin\\/`. Take effect after after -i \n',
+    'filter_flags': '  -if --i-flags   <String> - RegExp flags for -f option (`g`,`i`)  \n',
+    'existing': '  -e --existing            - Fire create events for existing files on start \n                               Use if applying of `create` callbacks on existing files is needed\n',
+    'help': '  -h --help                - Show this help\n'
 };
 
 args = process.argv.slice(2);
@@ -30,7 +36,6 @@ while (args.length) {
     arg = args.shift();
     if (arg.match(/^-*/g)[0].length > 0 && optkeys[arg] !== void(0)) {
         key = optkeys[arg];
-        console.log( key );
         options[key] = null;
     } else if (key) {
         options[key] = arg;

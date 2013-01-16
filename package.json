@@ -2,7 +2,7 @@
   "name": "spier",
   "version": "1.0.0",
   "author": "kerbyfc <kerbyfc@gmail.com>",
-  "description": "spies for any changes in directory (create, remove, rename, change)",
+  "description": "spies for any changes in directory (create, remove, rename, change)"
   "bin": {
       "spy": "bin/spy"
   },

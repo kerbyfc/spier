@@ -58,12 +58,20 @@
       this.stat = stat;
     }
 
-    Dir.prototype.read = function() {
-      var name, _i, _len, _ref;
+    Dir.prototype.add = function(filename, options) {
+      var path;
+      path = File.prototype.path(this.path, filename);
+      if (!(((options.ignore != null) && options.ignore.test(path)) || ((options.filter != null) && !options.filter.test(path)))) {
+        return this.files[filename] = File.prototype["new"](path);
+      }
+    };
+
+    Dir.prototype.read = function(options) {
+      var filename, _i, _len, _ref;
       _ref = fs.readdirSync(this.path);
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        name = _ref[_i];
-        this.files[name] = File.prototype["new"](this.path, name);
+        filename = _ref[_i];
+        this.add(filename, options);
       }
       return this;
     };
@@ -143,7 +151,7 @@
       return _results;
     };
 
-    Dir.prototype.compare = function(dir) {
+    Dir.prototype.compare = function(dir, options) {
       var created, current, existed, file, removed, subdir, subdirs, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _results;
       existed = this.filenames();
       current = dir.filenames();
@@ -171,7 +179,7 @@
         _results = [];
         for (_l = 0, _len3 = subdirs.length; _l < _len3; _l++) {
           subdir = subdirs[_l];
-          _results.push(subdir.compare(File.prototype["new"](subdir.path).read()));
+          _results.push(subdir.compare(File.prototype["new"](subdir.path).read(options), options));
         }
         return _results;
       }
@@ -196,31 +204,76 @@
 
     Spier.prototype.step = 0;
 
-    function Spier(root) {
+    Spier.prototype.options = {
+      ignore: null,
+      ignore_flags: '',
+      filter: null,
+      filter_flags: ''
+    };
+
+    Spier.prototype.shutdown = function(msg) {
+      console.log(msg);
+      return process.exit(0);
+    };
+
+    function Spier(root, options) {
+      var excerpt, _i, _len, _ref;
       if (root == null) {
         root = null;
       }
-      if (root == null) {
-        throw new Error('Specify directory path for spying');
+      if (options == null) {
+        options = {};
       }
-      this.scope = File.prototype["new"](root);
+      if (root == null) {
+        this.shutdown('Specify directory path for spying. Use spy --help');
+      }
+      this.setup(options);
+      _ref = ['ignore', 'filter'];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        excerpt = _ref[_i];
+        if (this.options[excerpt] != null) {
+          this.options[excerpt] = new RegExp(this.options[excerpt], this.options[excerpt + '_flags']);
+        }
+      }
+      try {
+        this.scope = File.prototype["new"](root);
+        this.scope.options = this.options;
+      } catch (err) {
+        this.shutdown(err.message);
+      }
       if (!this.scope.stat.isDirectory()) {
-        throw new Error(root + ' is not a directory');
+        this.shutdown("" + root + " is not a directory");
       }
       this;
 
     }
 
+    Spier.prototype.setup = function(options) {
+      var key, val, _results;
+      _results = [];
+      for (key in options) {
+        val = options[key];
+        _results.push(this.options[key] = val);
+      }
+      return _results;
+    };
+
     Spier.prototype.lookout = function() {
       var reality,
         _this = this;
-      reality = File.prototype["new"](this.scope.path).read();
-      this.scope.compare(reality);
-      if (!this.pause) {
-        return setTimeout(function() {
-          _this.lookout();
-          return _this.step++;
-        }, this.delay);
+      try {
+        reality = File.prototype["new"](this.scope.path).read(this.options);
+        this.scope.compare(reality, this.options);
+        if (!this.pause) {
+          return setTimeout(function() {
+            _this.lookout();
+            return _this.step++;
+          }, this.delay);
+        }
+      } catch (err) {
+        if (this.options.silence == null) {
+          return this.shutdown(err.message);
+        }
       }
     };
 
@@ -237,7 +290,7 @@
     Spier.prototype.on = function(event, handler) {
       var _this = this;
       Spier.prototype[event] = function() {
-        if (_this.step !== 0) {
+        if (!(_this.step === 0 && _this.options.existing === void 0)) {
           return handler.apply(null, arguments);
         }
       };

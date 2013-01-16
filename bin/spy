@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 Spier = require('../spier.js');
 
 optkeys = {
@@ -6,8 +7,8 @@ optkeys = {
     '--ignore': 'ignore',
     '-d': 'dir',
     '--dir': 'dir',
-    '-o': 'original',
-    '--original': 'original',
+    '-e': 'existing',
+    '--existing': 'existing',
     '-f': 'filter',
     '--filter': 'filter',
     '-h': 'help',
@@ -18,7 +19,7 @@ keys = {
     'dir': '• -d --dir        <path>  - specify directory to spy on\n',
     'ignore': '  -i --ignore     <regex> - explains what files will be ignored\n',
     'filter': '  -f --filter     <regex> - explains what files will be processed. \n                              NOTE: applying after -i',
-    'original': '  -o --original\n',
+    'existing': '  -e --existing           - fire create events for existing files on start \n',
     'help': '  -h --help show this message\n'
 };
 
@@ -31,7 +32,6 @@ while (args.length) {
     arg = args.shift();
     if (arg.match(/^-*/g)[0].length > 0 && optkeys[arg] !== void(0)) {
         key = optkeys[arg];
-        console.log( key );
         options[key] = null;
     } else if (key) {
         options[key] = arg;

@@ -34,8 +34,16 @@ class Dir
     @name = @path.split(Dir::separator).slice(-1)[0]
     @stat = stat
 
-  read: ->
-    @files[name] = File::new(@path, name) for name in fs.readdirSync(@path)
+  add: (filename, options) ->
+
+    path = File::path(@path, filename)
+
+    unless (options.ignore? and options.ignore.test(path)) or (options.filter? and !options.filter.test(path))
+      @files[filename] = File::new(path)
+
+
+  read: (options) ->
+    @add filename, options for filename in fs.readdirSync(@path)
     this
 
   invoke: (event, data...) ->
@@ -64,14 +72,20 @@ class Dir
         return [@files[filename]]
     false
 
-  filenames: -> name for name, file of @files
-  filepaths: -> file.path for name, file of @files
-  directories: -> file for name, file of @files when file.stat.isDirectory()
+  filenames: ->
+    name for name, file of @files
 
-  compare: (dir) ->
+  filepaths: ->
+    file.path for name, file of @files
+
+  directories: ->
+    file for name, file of @files when file.stat.isDirectory()
+
+  compare: (dir, options) ->
 
     existed = @filenames()
     current = dir.filenames()
+
     created = current.diff existed
     removed = existed.diff current
 
@@ -85,7 +99,7 @@ class Dir
     subdirs = @directories()
     if subdirs.length > 0
       for subdir in subdirs
-        subdir.compare File::new(subdir.path).read()
+        subdir.compare File::new(subdir.path).read(options), options
 
 class Spier
 
@@ -100,8 +114,10 @@ class Spier
   step: 0
 
   options:
-    filter: null
     ignore: null
+    ignore_flags: ''
+    filter: null
+    filter_flags: ''
 
   shutdown: (msg) ->
     console.log msg
@@ -112,15 +128,19 @@ class Spier
     unless root?
       @shutdown 'Specify directory path for spying. Use spy --help'
 
+    @setup options
+
+    for excerpt in ['ignore', 'filter']
+      @options[excerpt] = new RegExp(@options[excerpt], @options[excerpt + '_flags']) if @options[excerpt]?
+
     try
       @scope = File::new root
+      @scope.options = @options
     catch err
       @shutdown err.message
 
     unless @scope.stat.isDirectory()
       @shutdown "#{root} is not a directory"
-
-    @options[key] = val for key, val of options
 
     this
 
@@ -129,8 +149,8 @@ class Spier
 
   lookout: ->
     try
-      reality = File::new(@scope.path).read()
-      @scope.compare reality
+      reality = File::new(@scope.path).read(@options)
+      @scope.compare reality, @options
       unless @pause
         setTimeout( =>
           @lookout()
@@ -149,7 +169,7 @@ class Spier
 
   on: (event, handler) ->
     Spier::[event] = =>
-      handler(arguments...) unless @step is 0
+      handler(arguments...) unless @step is 0 and @options.existing is undefined
     this
 
 module.exports = Spier
