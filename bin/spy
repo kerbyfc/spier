@@ -1,23 +1,25 @@
 #!/usr/bin/env node
-
 Spier = require('../spier.js');
 
 optkeys = {
-  '-i': 'ignore',
-  '--ignore': 'ignore',
-  '-d': 'dir',
-  '--dir': 'dir',
-  '-f': 'filter',
-  '--filter': 'filter',
-  '-h': 'help',
-  '--help' : 'help'
+    '-i': 'ignore',
+    '--ignore': 'ignore',
+    '-d': 'dir',
+    '--dir': 'dir',
+    '-o': 'original',
+    '--original': 'original',
+    '-f': 'filter',
+    '--filter': 'filter',
+    '-h': 'help',
+    '--help' : 'help'
 };
 
 keys = {
-    'dir': '-d --dir  specify directory to spy on',
-    'ignore': '-i --ignore  regex that explains what files will be ignored',
-    'filter': '-f --filter  regex that explains what files will be processed. applying after --ignore',
-    'help': '-h --help show this message'
+    'dir': '• -d --dir        <path>  - specify directory to spy on\n',
+    'ignore': '  -i --ignore     <regex> - explains what files will be ignored\n',
+    'filter': '  -f --filter     <regex> - explains what files will be processed. \n                              NOTE: applying after -i',
+    'original': '  -o --original\n',
+    'help': '  -h --help show this message\n'
 };
 
 args = process.argv.slice(2);
@@ -38,30 +40,34 @@ while (args.length) {
 };
 
 if (options.help !== void(0) || options.dir === void(0) || options.dir === null) {
-    help = 'spier help: ';
+
+    help = '\n  Spier help:    • required\n';
     for (var i in keys) {
-        help += '\n - ' + keys[i];
+        help += '\n  ' + keys[i];
     };
-    exit(help);
+    console.log(help);
+
+} else {
+
+    spier = new Spier(options.dir, options);
+
+    ctype = function (file) {
+        return file.stat.isDirectory() ? 'directory' : 'file';
+    };
+
+    spier.on( 'create', function (file) {
+        console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
+    });
+    spier.on( 'remove', function (file) {
+        console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
+    });
+    spier.on( 'change', function (file) {
+        console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
+    });
+    spier.on( 'rename', function (from, to, file) {
+        console.log( 'rename', ctype(file), from, to );
+    });
+
+    spier.spy();
+
 }
-
-spier = new Spier(options.dir, options);
-
-ctype = function (file) {
-    return file.stat.isDirectory() ? 'directory' : 'file';
-};
-
-spier.on( 'create', function (file) {
-    console.log( 'create' + ' ' +  ctype(file) + ' ' + file.path );
-});
-spier.on( 'remove', function (file) {
-    console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
-});
-spier.on( 'change', function (file) {
-    console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
-});
-spier.on( 'rename', function (from, to, file) {
-    console.log( 'rename', ctype(file), from, to );
-});
-
-spier.spy();

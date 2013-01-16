@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 Spier = require('../spier.js');
 
 optkeys = {
@@ -7,6 +5,8 @@ optkeys = {
     '--ignore': 'ignore',
     '-d': 'dir',
     '--dir': 'dir',
+    '-o': 'original',
+    '--original': 'original',
     '-f': 'filter',
     '--filter': 'filter',
     '-h': 'help',
@@ -14,10 +14,11 @@ optkeys = {
 };
 
 keys = {
-    'dir': '-d --dir       • specify directory to spy',
-    'ignore': '-i --ignore      regex that explains what files will be ignored',
-    'filter': '-f --filter      regex that explains what files will be processed \n                   applying after -i',
-    'help': '-h --help        show this message'
+    'dir': '• -d --dir        <path>  - specify directory to spy on\n',
+    'ignore': '  -i --ignore     <regex> - explains what files will be ignored\n',
+    'filter': '  -f --filter     <regex> - explains what files will be processed. \n                              NOTE: applying after -i',
+    'original': '  -o --original\n',
+    'help': '  -h --help show this message\n'
 };
 
 args = process.argv.slice(2);
@@ -29,6 +30,7 @@ while (args.length) {
     arg = args.shift();
     if (arg.match(/^-*/g)[0].length > 0 && optkeys[arg] !== void(0)) {
         key = optkeys[arg];
+        console.log( key );
         options[key] = null;
     } else if (key) {
         options[key] = arg;
@@ -40,7 +42,7 @@ if (options.help !== void(0) || options.dir === void(0) || options.dir === null)
 
     help = '\n  Spier help:    • required\n';
     for (var i in keys) {
-        help += '\n  ' + keys[i] + '\n';
+        help += '\n  ' + keys[i];
     };
     console.log(help);
 
@@ -68,4 +70,3 @@ if (options.help !== void(0) || options.dir === void(0) || options.dir === null)
     spier.spy();
 
 }
-
