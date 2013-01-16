@@ -10,22 +10,22 @@ Spier <font size="2">1.1</font>
 
 <br />
 
-** Installation **
+### Installation
 
     npm install -g spier
 <br />
 
-** Command line usage ** 
+### Command line usage
 
     $ spy --help
 <br />
 
-** Command line usage example **
+### Command line usage example
 
     $ spy -d . --ignore .idea\|.git --filter \/js\/\|\/less\/
 <br />
 
-** Node.js usage **
+### Node.js usage
 
     Spier = require('spier');
 

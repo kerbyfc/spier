@@ -1,6 +1,6 @@
 {
   "name": "spier",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "kerbyfc <kerbyfc@gmail.com>",
   "description": "spies for any changes in directory (create, remove, rename, change)"
   "bin": {
