@@ -24,7 +24,7 @@ keys = {
     'ignore': '  -i --ignore     <RegExp> - Files to be ignored \n                               If you want to ignore git and idea folders, then specify `.idea\\|.git`\n',
     'ignore_flags': '  -if --i-flags   <String> - RegExp flags for -i option (`g`,`i`)  \n',
     'filter': '  -f --filter     <RegExp> - Files to be processed \n                               If you want to spy for files changes in `app` and `bin` folders, just specify: `app\\/\\|bin\\/`. Take effect after after -i \n',
-    'filter_flags': '  -if --i-flags   <String> - RegExp flags for -f option (`g`,`i`)  \n',
+    'filter_flags': '  -ff --f-flags   <String> - RegExp flags for -f option (`g`,`i`)  \n',
     'pattern': '  -p --pattern   <string> - Minimatch pattern, that explains what files will be processed. See [https://github.com/isaacs/minimatch] \n',
     'existing': '  -e --existing            - Fire create events for existing files on start \n                               Use if applying of `create` callbacks on existing files is needed\n',
     'help': '  -h --help                - Show this help\n'
