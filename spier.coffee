@@ -1,4 +1,5 @@
 fs = require 'fs'
+mm = require 'minimatch'
 
 Array.prototype.diff = (arr) ->
   this.filter(
@@ -38,9 +39,14 @@ class Dir
 
     path = File::path(@path, filename)
 
-    unless (options.ignore? and options.ignore.test(path)) or (options.filter? and !options.filter.test(path))
-      @files[filename] = File::new(path)
+    # - не определен ключ --ignore или определен но путь не попал под маску          не в фильтрах
+    #  И
+    #  - не определен ключ --filter или определен и путь подходит под маску          и
+    #    ИЛИ                                                                         попал под маску
+    #  - не определ ключ --pattern или определ и путь подходит под маску
 
+    if (!options.ignore? or !options.ignore.test(path)) and ( (!options.filter? or options.filter.test(path)) or (!options.pattern? or mm(path, options.pattern)) )
+      @files[filename] = File::new(path)
 
   read: (options) ->
     @add filename, options for filename in fs.readdirSync(@path)
@@ -118,6 +124,7 @@ class Spier
     ignore_flags: ''
     filter: null
     filter_flags: ''
+    pattern: null
 
   shutdown: (msg) ->
     console.log msg
@@ -129,6 +136,8 @@ class Spier
       @shutdown 'Specify directory path for spying. Use spy --help'
 
     @setup options
+
+#    console.log @options
 
     for excerpt in ['ignore', 'filter']
       @options[excerpt] = new RegExp(@options[excerpt], @options[excerpt + '_flags']) if @options[excerpt]?
