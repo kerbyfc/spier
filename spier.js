@@ -61,9 +61,17 @@
     }
 
     Dir.prototype.add = function(filename, options) {
-      var path;
+      var match, path;
       path = File.prototype.path(this.path, filename);
-      if ((!(options.ignore != null) || !options.ignore.test(path)) && ((!(options.filter != null) || options.filter.test(path)) || (!(options.pattern != null) || mm(path, options.pattern)))) {
+      match = {
+        ignore: (options.ignore != null) && options.ignore.test(path),
+        filter: (options.filter != null) && options.filter.test(path),
+        pattern: (options.pattern != null) && mm(path, options.pattern, {
+          matchBase: true
+        }),
+        directory: File.prototype.stat(path).isDirectory()
+      };
+      if (match.directory || (!match.ignore && (match.filter || match.pattern))) {
         return this.files[filename] = File.prototype["new"](path);
       }
     };
@@ -240,7 +248,6 @@
       }
       try {
         this.scope = File.prototype["new"](root);
-        this.scope.options = this.options;
       } catch (err) {
         this.shutdown(err.message);
       }

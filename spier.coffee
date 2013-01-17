@@ -39,13 +39,13 @@ class Dir
 
     path = File::path(@path, filename)
 
-    # - не определен ключ --ignore или определен но путь не попал под маску          не в фильтрах
-    #  И
-    #  - не определен ключ --filter или определен и путь подходит под маску          и
-    #    ИЛИ                                                                         попал под маску
-    #  - не определ ключ --pattern или определ и путь подходит под маску
+    match =
+      ignore: options.ignore? and options.ignore.test path
+      filter: options.filter? and options.filter.test path
+      pattern: options.pattern? and mm(path, options.pattern, matchBase: true)
+      directory: File::stat(path).isDirectory()
 
-    if (!options.ignore? or !options.ignore.test(path)) and ( (!options.filter? or options.filter.test(path)) or (!options.pattern? or mm(path, options.pattern)) )
+    if match.directory or ( !match.ignore and (match.filter or match.pattern) )
       @files[filename] = File::new(path)
 
   read: (options) ->
@@ -137,14 +137,11 @@ class Spier
 
     @setup options
 
-#    console.log @options
-
     for excerpt in ['ignore', 'filter']
       @options[excerpt] = new RegExp(@options[excerpt], @options[excerpt + '_flags']) if @options[excerpt]?
 
     try
       @scope = File::new root
-      @scope.options = @options
     catch err
       @shutdown err.message
 
