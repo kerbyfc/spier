@@ -15,6 +15,8 @@ optkeys = {
     '-ff': 'filter_flags',
     '--f-flags': 'filter_flags',
     '--filter': 'filter',
+    '-s': 'skip_empty',
+    '--skip-empty': 'skip_empty',
     '-h': 'help',
     '--help' : 'help'
 };
@@ -26,6 +28,7 @@ keys = {
     'filter': '  -f --filter     <RegExp> - Files to be processed \n                               If you want to spy for files changes in `app` and `bin` folders, just specify: `app\\/\\|bin\\/`. Take effect after after -i \n',
     'filter_flags': '  -ff --f-flags   <String> - RegExp flags for -f option (`g`,`i`)  \n',
     'pattern': '  -p --pattern   <string> - Minimatch pattern, that explains what files will be processed. See [https://github.com/isaacs/minimatch] \n',
+    'skip_empty': '  -s --skip-empty          - Empty directories (without non-ignored files, matched by pattern or filter regexp) will be skipped \n',
     'existing': '  -e --existing            - Fire create events for existing files on start \n                               Use if applying of `create` callbacks on existing files is needed\n',
     'help': '  -h --help                - Show this help\n'
 };
