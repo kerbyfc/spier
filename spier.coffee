@@ -1,5 +1,5 @@
 fs = require 'fs'
-mm = require 'minimatch'
+minimatch = require 'minimatch'
 
 Array.prototype.diff = (arr) ->
   this.filter(
@@ -9,125 +9,85 @@ Array.prototype.diff = (arr) ->
 
 class File
 
-  File::stat = (parts...) ->
-    fs.statSync(File::path(parts...))
+  File::stat = (path) ->
+    fs.statSync(path)
 
   File::path = (parts...) ->
     parts.join Dir::separator
 
-  File::new = (path, stat = File::stat path) ->
-    if stat.isDirectory() then new Dir(path, stat) else new File(path, stat)
+  File::new = (path, options = {}) ->
+    stat = File::stat path
+    if stat.isDirectory() then new Dir(path, stat, options) else new File(path, stat)
 
   constructor: (path, stat) ->
     @path = path
     @name = @path.split(Dir::separator).slice(-1)[0]
     @stat = stat
-
-
 
 class Dir
 
   Dir::separator = if process.platform.match(/^win/)? then '\\' else '/'
 
-  constructor: (path, stat) ->
+  options:
+    pattern: null
+    ignore: null
+
+  constructor: (path, stat, options) ->
     @path = path
-    @files = {}
-    @ignore = []
-    @step = 0
-    @options = {}
-    @name = @path.split(Dir::separator).slice(-1)[0]
     @stat = stat
-    @existed = []
-    @cache = {}
-    @empty = []
+    @options = options
+    @name = @path.split(Dir::separator).slice(-1)[0]
+    @setup()
 
-  __ignore: (path) ->
-    !( @options.ignore? and !!@options.ignore.test(path) )
+  setup: =>
+    @files = {}
+    @index =
+      current: []
+      existed: []
+      ignored: []
 
-  __filter: (path) ->
-    @options.filter? and !!@options.filter.test(path)
+  check: (filename) ->
 
-  __pattern: (path) ->
-    @options.pattern? and !!mm(path, @options.pattern, {matchBase: true})
+    path = File::path @path, filename
 
-  suitable: (filename) ->
-
-    path = File::path(@path, filename)
-    stat = File::stat(path)
-#
-#    checks =
-#      i: @__ignore(path)
-#      p: @__pattern(path)
-#      f: @__filter(path)
-#
-#    for k, v of checks
-#      checks[k.toUpperCase()] = v
-#
-##    console.log checks
-#
-#    types =
-#      '*': (a, b) -> a and b
-#      '+': (a, b) -> a or b
-#
-##    console.log types
-#
-#    naming =
-#      f: 'filter'
-#      F: 'Filter'
-#      i: 'ignore'
-#      I: 'Ignore'
-#      p: 'pattern'
-#      P: 'Pattern'
-#
-#    comparision = true
-#    type = types['*']
-#    for i in @options.rules.split('')
-#      if i in ['P', 'I', 'F', 'p','i','f']
-##        console.log " >>>>>>>>>>>>>>>>>>>", comparision
-#        comparision = type(comparision, checks[i])
-##        console.log naming[i], path, @options[naming[i].toLowerCase()], comparision
-#        if i in ['P', 'I', 'F']
-#          comparision = comparision or stat.isDirectory()
-##          console.log "############", comparision
-#      else
-#        type = types[i]
-
-
-
-    if stat.isDirectory() or Spier.comparator.compare(path)
-
-      @cache[filename] = File::new(path, stat)
-
-      if @options.skip_empty isnt undefined and @cache[filename].stat.isDirectory() and @cache[filename].read(@options).current.length is 0
-        @empty.push filename
-        return false
-
+    if @isInIgnore(path)
+      @ignore(filename)
+    else if !@matchPattern(path)
+      @ignore(filename)
+    else
       true
 
-    else
+  isInIgnore: (path) ->
+#    console.log "? #{path} matches (#{@options.pattern}) -> #{(@options.pattern? and !@options.pattern.test path)}"
+    @options.pattern? and !@options.pattern.test path
 
-      unless stat.isDirectory()
-        @ignore.push filename
+  matchPattern: (path) ->
+#    console.log "? #{path} in ignore (#{@options.ignore}) -> #{(@options.ignore? and @options.ignore.test path)}"
+    @options.ignore? and @options.ignore.test path
 
+  ignore: (filename) ->
+    unless File::stat(File::path @path, filename).isDirectory()
+#      console.log '--ignore', File::path(@path, filename)
+      @index.ignored.push filename
       false
+    else
+      true
+
 
   read: () =>
-    unless @step is options.step
-      @current = []
-      @empty = []
-      @current.push filename for filename in fs.readdirSync(@path) when filename not in @ignore and @suitable(filename)
-      @step = options.step
-#      console.log "READ", @path, @filenames()
+    @index.current = []
+    @index.current.push filename for filename in fs.readdirSync(@path) when filename not in @index.ignored and (filename in @index['existed'] or @check(filename))
     this
 
   invoke: (event, data...) ->
     if (tmp = @[event](data...))
-      Spier::[event](tmp...)
+#     TODO
+#      console.log Spier.instances[@options.id].handlers[event].toString()
+      Spier.instances[@options.id].handlers[event](tmp...)
 
   create: (filename) ->
-    unless filename in @empty
-      @files[filename] = if @cache[filename]? then ( (d) -> d)(@cache[filename]) else File::new(File::path(@path, filename))
-      return [@files[filename]]
+    @files[filename] = File::new File::path(@path, filename), @options
+    return [@files[filename]]
     false
 
   remove: (filename) ->
@@ -159,13 +119,17 @@ class Dir
 
   compare: ->
 
-    existed = @existed
-    current = @current
-
-#    console.log "CACHE", existed, '<->', current
+    existed = @index.existed
+    current = @index.current
 
     created = current.diff existed
     removed = existed.diff current
+
+#    console.log @path
+#    console.log 'EXITED', existed
+#    console.log 'CURRENT', current
+#    console.log 'CREATED', created
+#    console.log 'REMOVED', removed
 
     if removed.length is created.length and created.length is 1
       @invoke 'rename', removed[0], created[0]
@@ -176,157 +140,166 @@ class Dir
 
     subdirs = @directories()
 
-    @existed = ( (c) -> c)(current)
-
-#    console.log "CACHE =", @current
+    @index.existed = ((c)->c) @index.current
 
     if subdirs.length > 0
       for subdir in subdirs
         subdir.read(@options).compare()
 
-
-class Comparator
-
-  comparisions: []
-
-  map:
-    i: 'ignore'
-    f: 'filter'
-    p: 'pattern'
-
-  combos:
-    '*': (a, b) -> a and b
-    '+': (a, b) -> a or b
-
-  constructor: (rules = 'p+i*f', data = {}) ->
-
-    @rules = rules.toLowerCase()
-    @data = data
-
-#    high = rules.match(/\w{1}\*\w{1}/)              // TODO
-#    if high? and high.index > 0
-#      @rules = high[0] + rules.slice(0, high.index).
-
-    combo = @combos['*']
-    for char in @rules.split('')
-      if char.match(/\w/)?
-        @comparisions.push combo: combo, fn: @['_' + @map[char]], type: @map[char] if @data[@map[char]] isnt undefined
-      else
-        combo = @combos[char]
-
-    console.log @comparisions
-
-  compare: (path, result = true) ->
-
-    for comparision in @comparisions
-      result = comparision.combo( result, comparision.fn(path) )
-      console.log comparision.type.toUpperCase(), @data[comparision.type], 'in', path, comparision.fn(path)
-
-    console.log "> include", path, result
-
-  _ignore: (str) =>
-    !( @data.ignore? and !@data.ignore.test(str) )
-
-  _filter: (str) =>
-    @data.filter? and !!@data.filter.test(str)
-
-  _pattern: (str) =>
-    @data.pattern? and !!mm(str, @data.pattern, {matchBase: true})
-
 class Spier
-
-  handlers:
-    create: ->
-    remove: ->
-    change: ->
-    rename: ->
 
   delay: 50
   pause: false
+  step: 1
+  handlers: {}
 
   options:
-    step: 1
-    ignore_flags: ''
-    filter_flags: ''
+    id: null
+    root: null
+    ignore: null
+    pattern: null
+    matchBase: false
+    existing: false
+    dot: true
+
+  @instances = {}
+
+  # create new Spier instance
+  @spy = ->
+    new Spier(arguments...).spy()
+
+  # configuring
+  constructor: (options) ->
+    @configure(options) if options?
+
+  spy: (options) ->
+
+    # just start if instance have been already created
+    return @start() if @options.id?
+
+    @configure(options) if options?
+
+    # check nessesary params
+    unless @options.root?
+      @shutdown 'Specify directory path for spying. Use spy --help'
+
+    # check file access TODO use file system utilities for this
+    try
+      stat = File::stat @options.root
+    catch e
+      @shutdown @options.root + ' doesn`t exists'
+
+    unless stat.isDirectory()
+      @shutdown @options.in + ' is not a directory'
+
+    # create root folder object
+    @scope = new Dir @options.root, stat, @options
+
+    # create instance id
+    @options.id = Math.random().toString().substr(2)
+
+    # register this instance
+    Spier.instances[@options.id] = this
+
+    @start()
+
+    return this
+
+  # specify instance options
+  configure: (options = null) ->
+
+    # options object must be an instance of Object class
+    unless typeof options is 'object'
+      @shutdown "Options object missing"
+
+    # setup matchbase flag before regexp generation
+    @options.matchBase = options.matchBase || false
+
+    # validate option value if it is pattern
+    for option, value of options
+      @options[option] = unless option in ['pattern', 'ignore'] then value else @regexp(value, option)
+
+    return this
+
+  # validate pattern and create regexp
+  regexp: (pattern, name) ->
+
+    # just return RegExp object if he was passed
+    if pattern instanceof RegExp or pattern is null
+      return pattern
+
+    # create RegExp from string
+    else if typeof pattern is 'string'
+
+      return null unless pattern.length
+
+      # try to create RegExp from string
+      try
+        # if string looks like regexp
+        if pattern.match( /^\/.*\/([igm]*)?$/ )? and (fIndex = pattern.lastIndexOf('/'))
+          regexp = new RegExp pattern.substr( 1, fIndex-1), pattern.substring(++fIndex)
+          console.log pattern.substr( 1, fIndex-1)
+          console.log regexp
+          return regexp
+
+        # create with minimatch
+        else
+          # new Minimatch object
+          return minimatch.makeRe pattern, {matchBase: @options.matchBase, dot: @options.dot}
+
+      # something went wrong
+      catch e
+        @shutdown "Pattern `#{pattern}` is invalid. #{e.message}"
+
+    # invalid pattern type
+    else
+      @shutdown "Option `#{name}` must be an instance of String or RegExp. #{typeof pattern} given"
+
+  # look for directory changes
+  lookout: ->
+
+    @scope.read().compare()
+
+    # repeat after delay
+    unless @pause
+      @timeout = setTimeout( =>
+        @lookout()
+        @options.step++
+      , @delay)
+
+  # stop watching
+  pause: ->
+    @timeout = clearTimeout(@timeout) || null
+    @pause = true
+
+  # start watching loop
+  start: ->
+    @step = if @options.existing then 1 else 0
+    @pause = false
+    @lookout()
+
+  # register event handler for event such as create/rename/remove/change
+  on: (event, handler) ->
+    @handlers[event] = =>
+      handler(arguments...) if @step > 0
+    this
 
   shutdown: (msg) ->
     console.log msg
     process.exit(0)
 
-  isRegExp: (rg) ->
-    rg = rg.toString() if typeof rg is 'object'
-    rg = "/#{rg}/" unless rg.slice(0,1)[0] is '/' and rg.slice(-1)[0] is '/'
-    rg.match( /\/.*\/(.?)$/ )?
-
-  constructor: (root = null, options = {}) ->
-
-    unless root?
-      @shutdown 'Specify directory path for spying. Use spy --help'
-
-    try
-      stat = File::stat root
-    catch e
-      @shutdown root + ' doesn`t exists'
-
-    unless stat.isDirectory()
-      @shutdown root + ' is not a directory'
-
-    @setup options
-
-    @scope = File::new root, stat
-
-  setup: (options) ->
-
-    compares = {}
-
-    for excerpt in ['ignore', 'filter']
-
-      if options[excerpt] and options[excerpt]?
-
-        if @isRegExp(options[excerpt])
-
-          compares[excerpt] = if typeof options[excerpt] is 'string'
-            new RegExp(options[excerpt], @options[excerpt + '_flags'])
-          else
-            options[excerpt]
-
-        else
-          @shutdown excerpt + ' is not a valid regexp'
-
-        delete options[excerpt]
-
-    if options.pattern and options.pattern?
-      compares.pattern = options.pattern
-      delete options.pattern
-
-    Spier.comparator = new Comparator(options.rules ?= null, compares)
-
-    @options[k]=v for k,v of options
-
-    this
-
-  lookout: ->
-
-    @scope.read().compare()
-    unless @pause
-      setTimeout( =>
-        @lookout()
-        @options.step++
-      , @delay)
-
-
-  pause: ->
-    @pause = true
-
-  spy: ->
-    @step = 0
-    @pause = false
-    @lookout()
-
-  on: (event, handler) ->
-    Spier::[event] = =>
-      handler(arguments...) unless @options.step is 1 and @options.existing is undefined
-    this
-
 module.exports = Spier
 
+
+# REFACTORING TO
+# • Command line
+#   - spy [for <minimatch pattern/regexp string> pattern] in <string> directory path [ignoring <minimatch pattern/regexp string> pattern]
+#
+# • Api
+#   - spier = Spier.spy( for: pattern, ignoring: pattern, in: directory )
+
+#
+#
+#
+#
+#

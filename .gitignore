@@ -4,3 +4,4 @@ node_modules
 testdir
 .npmignore
 bin/spytest.js
+comparator.coffee
