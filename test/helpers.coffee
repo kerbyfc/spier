@@ -3,9 +3,13 @@ global.path = require 'path'
 global.sinon = require 'sinon'
 global.exec = require('child_process').exec
 global.shld = require 'should'
+global.glob = require 'glob'
 
-global.TEST_ROOT_DIR = __dirname
+global.TEST_DIR = __dirname
 global.TEMP_DIR = path.join __dirname, 'tmp'
+global.SPEC_DIR = path.join TEST_DIR, 'specs'
+
+global.Spier = require '../spier.coffee'
 
 global.__tmp = ->
   path.join TEMP_DIR, path.join(arguments...)

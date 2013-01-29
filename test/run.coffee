@@ -1,19 +1,10 @@
 describe "Spier", ->
 
   describe "Programmatic interface", ->
-    require "./specs/programmatic/common"
+    require spec for spec in glob.sync( path.join SPEC_DIR, 'programmatic/*.coffee')
 
   describe "CLI interface", ->
-    require "./specs/cli/common"
-    require "./specs/cli/in"
-    require "./specs/cli/ignore"
-    require "./specs/cli/pattern"
-    require "./specs/cli/dotfiles"
-    require "./specs/cli/existing"
+    require spec for spec in glob.sync( path.join SPEC_DIR, 'cli/*.coffee')
 
   describe "Events handling", ->
-
-    require './specs/events/create'
-    require './specs/events/remove'
-    require './specs/events/change'
-    require './specs/events/rename'
+    require spec for spec in glob.sync( path.join SPEC_DIR, 'events/*.coffee')
