@@ -4,21 +4,25 @@
   "author": "kerbyfc <kerbyfc@gmail.com>",
   "description": "spies for any changes in directory (create, remove, rename, change)",
   "bin": {
-      "spy": "bin/spy"
+    "spy": "bin/spy"
   },
   "keywords": [
     "spy",
-    "spier",
-    "watch",
-    "wathcer"
+    "watch"
   ],
   "repository": {
     "type": "git",
-    "url" : "https://github.com/kerbyfc/spier.git"
+    "url": "https://github.com/kerbyfc/spier.git"
   },
-  "dependencies" : {
-    "commander": "*",
-    "minimatch": "*"
+  "dependencies": {
+    "commander": "1.1.1",
+    "minimatch": "0.2.9"
+  },
+  "devDependencies": {
+    "mocha": "1.8.1",
+    "should": "1.2.1",
+    "sinon": "1.5.2",
+    "codo": "1.5.4"
   },
   "main": "spier.js"
 }
