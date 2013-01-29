@@ -15,7 +15,7 @@ class File
   File::path = (parts...) ->
     parts.join Dir::separator
 
-  File::new = (path, options = {}) ->
+  File::new = (path, options = {}, parent) ->
     stat = File::stat path
     if stat.isDirectory() then new Dir(path, stat, options) else new File(path, stat)
 
@@ -32,87 +32,155 @@ class Dir
     pattern: null
     ignore: null
 
-  constructor: (path, stat, options) ->
+  constructor: (path, stat, options, parent = null) ->
     @path = path
     @stat = stat
     @options = options
+    @parent = parent
     @name = @path.split(Dir::separator).slice(-1)[0]
     @setup()
 
   setup: =>
+    @subdirs = false
     @files = {}
+    @cache = {}
     @index =
       current: []
       existed: []
       ignored: []
+      subdirs: []
+    @history = {}
+
+  cleanup: ->
+    @index.current = []
+    @index.subdirs = []
+    @cache = {}
+  
+  cached: (filename) ->
+    @cache[filename] || File::new( File::path @path, filename, this )
+
+  filepath: (filename) ->
+    File::path @path, filename
 
   check: (filename) ->
 
-    path = File::path @path, filename
+    path = @filepath filename
 
     if @isInIgnore(path)
-      @ignore(filename)
-    else if !@matchPattern(path)
-      @ignore(filename)
+      return @ignore(filename) # false
+    
+    stat = File::stat(path)
+
+    if !@matchPattern(path) and !stat.isDirectory()
+      @ignore(filename) # false
     else
-      true
+      @cache[filename] = if stat.isDirectory()
+        new Dir(path, stat, @options, this) # !false (true)
+      else
+        new File(path, stat) # !false (true)
 
   isInIgnore: (path) ->
-#    console.log "? #{path} matches (#{@options.pattern}) -> #{(@options.pattern? and !@options.pattern.test path)}"
-    @options.pattern? and !@options.pattern.test path
-
-  matchPattern: (path) ->
-#    console.log "? #{path} in ignore (#{@options.ignore}) -> #{(@options.ignore? and @options.ignore.test path)}"
+    if @options.debug
+      console.log "#{path} #{if (@options.ignore? and @options.ignore.test path) then 'WAS' else 'WASN`T'} ignored by #{@options.ignore} pattern"
     @options.ignore? and @options.ignore.test path
 
-  ignore: (filename) ->
-    unless File::stat(File::path @path, filename).isDirectory()
-#      console.log '--ignore', File::path(@path, filename)
-      @index.ignored.push filename
-      false
-    else
-      true
+  matchPattern: (path) ->
+    if @options.debug
+      console.log "#{path} #{if (!@options.pattern? or @options.pattern.test path) then 'WAS' else 'WASN`T'} processed by #{@options.pattern} pattern"
+    !@options.pattern? or @options.pattern.test path
 
+  ignore: (filename) ->
+    @index.ignored.push filename
+    false
 
   read: () =>
-    @index.current = []
-    @index.current.push filename for filename in fs.readdirSync(@path) when filename not in @index.ignored and (filename in @index['existed'] or @check(filename))
+    @cleanup()
+    @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
     this
 
-  invoke: (event, data...) ->
-    if (tmp = @[event](data...))
-#     TODO
-#      console.log Spier.instances[@options.id].handlers[event].toString()
-      Spier.instances[@options.id].handlers[event](tmp...)
+  add: (filename) ->
+    if filename in @index.existed or @check(filename)
+      @index.current.push filename
 
-  create: (filename) ->
-    @files[filename] = File::new File::path(@path, filename), @options
-    return [@files[filename]]
-    false
+  archive: (filename, event, file) ->
+    @history[filename] ?= []
+    @history[filename].push [event, file]
+    @history[filename].shift() if @history[filename].length > 20
+
+  trigger: (event, file) ->
+    Spier.instances[@options.id].handlers[event](file)
+    @archive(file.name, event, file)
+
+  invoke: (event, data...) ->
+    if (file = @[event](data...))
+      @trigger event, file
+
+  create: (filename, file = false) ->
+
+    @files[filename] = file || @cached(filename)
+    
+    if @files[filename].stat.isDirectory()
+      @index.subdirs.push filename
+      @subdirs = true
+
+    if @files[filename].stat.isDirectory() and (!@options.folders or @options.skipEmpty)
+      false
+    
+    else
+
+      if @options.skipEmpty and @parent? and !@parent.history[@name]
+
+        @parent.trigger 'create', this
+
+        # console.log "CREATE ", @name, 'for', @parent.path, @parent.history[@name]
+        
+        # если принято не добавлять пустые директории а это директория не добавлять сразу
+        unless @files[filename].stat.isDirectory()
+          @files[filename]
+        else
+          false
+      
+      else
+        @files[filename]
 
   remove: (filename) ->
     tmp = (=> @files[filename])()
     delete @files[filename]
-    [tmp]
+    tmp
 
   rename: (oldname, newname) ->
     @files[newname] = @files[oldname]
     @files[newname].path = File::path @path, newname
     @files[newname].name = newname
+    @files[newname].lastname = oldname
     delete @files[oldname]
-    [File::path(@path, oldname), @files[newname].path, @files[newname]]
+    @files[newname]
 
   change: (filename) ->
-    if !@files[filename].stat.isDirectory() and (tmp = File::new(File::path @path, filename)) and @files[filename].stat.ctime.getTime() isnt tmp.stat.ctime.getTime()
-      @files[filename].stat = tmp.stat
-      return [@files[filename]]
-    false
+
+    curr = File::stat @filepath(filename)
+
+    if curr.isDirectory() and (@files[filename].stat.atime.getTime() isnt curr.atime.getTime() or @files[filename].subdirs)
+
+      # console.log ">> DIR CHANGED", @files[filename].path, @files[filename].stat.atime
+
+      @files[filename].stat = curr
+      @index.subdirs.push filename
+      false
+
+    else if !curr.isDirectory() and @files[filename].stat.ctime.getTime() isnt curr.ctime.getTime()
+
+      @files[filename].stat = curr
+      @files[filename]
+
+    else
+      false
 
   filenames: ->
     name for name, file of @files
 
   filepaths: (filenames = @filenames()) ->
-    File::path @path, filename for filename in filenames
+    @filepath filename for filename in filenames
 
   directories: ->
     file for name, file of @files when file.stat.isDirectory()
@@ -125,11 +193,7 @@ class Dir
     created = current.diff existed
     removed = existed.diff current
 
-#    console.log @path
-#    console.log 'EXITED', existed
-#    console.log 'CURRENT', current
-#    console.log 'CREATED', created
-#    console.log 'REMOVED', removed
+    # console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
 
     if removed.length is created.length and created.length is 1
       @invoke 'rename', removed[0], created[0]
@@ -138,19 +202,17 @@ class Dir
       @invoke 'remove', file for file in removed
       @invoke 'change', file for file in existed.diff removed
 
-    subdirs = @directories()
-
     @index.existed = ((c)->c) @index.current
 
-    if subdirs.length > 0
-      for subdir in subdirs
-        subdir.read(@options).compare()
+    for subdir in @index.subdirs
+      @files[subdir].read(@options).compare()
 
 class Spier
 
   delay: 50
   pause: false
   step: 1
+  memory: 10.0
   handlers: {}
 
   options:
@@ -161,6 +223,8 @@ class Spier
     matchBase: false
     existing: false
     dot: true
+    folders: false
+    skipEmpty: false
 
   @instances = {}
 
@@ -219,6 +283,8 @@ class Spier
     for option, value of options
       @options[option] = unless option in ['pattern', 'ignore'] then value else @regexp(value, option)
 
+    @options.skipEmpty = false unless @options.folders
+
     return this
 
   # validate pattern and create regexp
@@ -236,11 +302,8 @@ class Spier
       # try to create RegExp from string
       try
         # if string looks like regexp
-        if pattern.match( /^\/.*\/([igm]*)?$/ )? and (fIndex = pattern.lastIndexOf('/'))
-          regexp = new RegExp pattern.substr( 1, fIndex-1), pattern.substring(++fIndex)
-          console.log pattern.substr( 1, fIndex-1)
-          console.log regexp
-          return regexp
+        if pattern.match( /^r\/.*\/([igm]*)?$/ )? and (fIndex = pattern.lastIndexOf('/'))
+          return new RegExp pattern.substr( 2, fIndex-3), pattern.substring(fIndex+1)
 
         # create with minimatch
         else
@@ -253,7 +316,7 @@ class Spier
 
     # invalid pattern type
     else
-      @shutdown "Option `#{name}` must be an instance of String or RegExp. #{typeof pattern} given"
+      @shutdown "Option `#{name}` must be an instance of String or RegExp. <#{typeof pattern}> #{pattern} given"
 
   # look for directory changes
   lookout: ->
@@ -264,7 +327,7 @@ class Spier
     unless @pause
       @timeout = setTimeout( =>
         @lookout()
-        @options.step++
+        @step++
       , @delay)
 
   # stop watching
@@ -289,17 +352,3 @@ class Spier
     process.exit(0)
 
 module.exports = Spier
-
-
-# REFACTORING TO
-# • Command line
-#   - spy [for <minimatch pattern/regexp string> pattern] in <string> directory path [ignoring <minimatch pattern/regexp string> pattern]
-#
-# • Api
-#   - spier = Spier.spy( for: pattern, ignoring: pattern, in: directory )
-
-#
-#
-#
-#
-#

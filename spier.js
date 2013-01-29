@@ -27,7 +27,7 @@
       return parts.join(Dir.prototype.separator);
     };
 
-    File.prototype["new"] = function(path, options) {
+    File.prototype["new"] = function(path, options, parent) {
       var stat;
       if (options == null) {
         options = {};
@@ -59,80 +59,148 @@
       ignore: null
     };
 
-    function Dir(path, stat, options) {
+    function Dir(path, stat, options, parent) {
+      if (parent == null) {
+        parent = null;
+      }
       this.read = __bind(this.read, this);
 
       this.setup = __bind(this.setup, this);
+
       this.path = path;
       this.stat = stat;
       this.options = options;
+      this.parent = parent;
       this.name = this.path.split(Dir.prototype.separator).slice(-1)[0];
       this.setup();
     }
 
     Dir.prototype.setup = function() {
+      this.subdirs = false;
       this.files = {};
-      return this.index = {
+      this.cache = {};
+      this.index = {
         current: [],
         existed: [],
-        ignored: []
+        ignored: [],
+        subdirs: []
       };
+      return this.history = {};
+    };
+
+    Dir.prototype.cleanup = function() {
+      this.index.current = [];
+      this.index.subdirs = [];
+      return this.cache = {};
+    };
+
+    Dir.prototype.cached = function(filename) {
+      return this.cache[filename] || File.prototype["new"](File.prototype.path(this.path, filename, this));
+    };
+
+    Dir.prototype.filepath = function(filename) {
+      return File.prototype.path(this.path, filename);
     };
 
     Dir.prototype.check = function(filename) {
-      var path;
-      path = File.prototype.path(this.path, filename);
+      var path, stat;
+      path = this.filepath(filename);
       if (this.isInIgnore(path)) {
         return this.ignore(filename);
-      } else if (!this.matchPattern(path)) {
+      }
+      stat = File.prototype.stat(path);
+      if (!this.matchPattern(path) && !stat.isDirectory()) {
         return this.ignore(filename);
       } else {
-        return true;
+        return this.cache[filename] = stat.isDirectory() ? new Dir(path, stat, this.options, this) : new File(path, stat);
       }
     };
 
     Dir.prototype.isInIgnore = function(path) {
-      return (this.options.pattern != null) && !this.options.pattern.test(path);
-    };
-
-    Dir.prototype.matchPattern = function(path) {
+      if (this.options.debug) {
+        console.log("" + path + " " + ((this.options.ignore != null) && this.options.ignore.test(path) ? 'WAS' : 'WASN`T') + " ignored by " + this.options.ignore + " pattern");
+      }
       return (this.options.ignore != null) && this.options.ignore.test(path);
     };
 
-    Dir.prototype.ignore = function(filename) {
-      if (!File.prototype.stat(File.prototype.path(this.path, filename)).isDirectory()) {
-        this.index.ignored.push(filename);
-        return false;
-      } else {
-        return true;
+    Dir.prototype.matchPattern = function(path) {
+      if (this.options.debug) {
+        console.log("" + path + " " + (!(this.options.pattern != null) || this.options.pattern.test(path) ? 'WAS' : 'WASN`T') + " processed by " + this.options.pattern + " pattern");
       }
+      return !(this.options.pattern != null) || this.options.pattern.test(path);
+    };
+
+    Dir.prototype.ignore = function(filename) {
+      this.index.ignored.push(filename);
+      return false;
     };
 
     Dir.prototype.read = function() {
       var filename, _i, _len, _ref;
-      this.index.current = [];
+      this.cleanup();
       _ref = fs.readdirSync(this.path);
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         filename = _ref[_i];
-        if (__indexOf.call(this.index.ignored, filename) < 0 && (__indexOf.call(this.index['existed'], filename) >= 0 || this.check(filename))) {
-          this.index.current.push(filename);
+        if (__indexOf.call(this.index.ignored, filename) < 0) {
+          this.add(filename);
         }
       }
       return this;
     };
 
-    Dir.prototype.invoke = function() {
-      var data, event, tmp, _ref;
-      event = arguments[0], data = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
-      if ((tmp = this[event].apply(this, data))) {
-        return (_ref = Spier.instances[this.options.id].handlers)[event].apply(_ref, tmp);
+    Dir.prototype.add = function(filename) {
+      if (__indexOf.call(this.index.existed, filename) >= 0 || this.check(filename)) {
+        return this.index.current.push(filename);
       }
     };
 
-    Dir.prototype.create = function(filename) {
-      this.files[filename] = File.prototype["new"](File.prototype.path(this.path, filename), this.options);
-      return [this.files[filename]];
-      return false;
+    Dir.prototype.archive = function(filename, event, file) {
+      var _base, _ref;
+      if ((_ref = (_base = this.history)[filename]) == null) {
+        _base[filename] = [];
+      }
+      this.history[filename].push([event, file]);
+      if (this.history[filename].length > 20) {
+        return this.history[filename].shift();
+      }
+    };
+
+    Dir.prototype.trigger = function(event, file) {
+      Spier.instances[this.options.id].handlers[event](file);
+      return this.archive(file.name, event, file);
+    };
+
+    Dir.prototype.invoke = function() {
+      var data, event, file;
+      event = arguments[0], data = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
+      if ((file = this[event].apply(this, data))) {
+        return this.trigger(event, file);
+      }
+    };
+
+    Dir.prototype.create = function(filename, file) {
+      if (file == null) {
+        file = false;
+      }
+      this.files[filename] = file || this.cached(filename);
+      if (this.files[filename].stat.isDirectory()) {
+        this.index.subdirs.push(filename);
+        this.subdirs = true;
+      }
+      if (this.files[filename].stat.isDirectory() && (!this.options.folders || this.options.skipEmpty)) {
+        return false;
+      } else {
+        if (this.options.skipEmpty && (this.parent != null) && !this.parent.history[this.name]) {
+          this.parent.trigger('create', this);
+          if (!this.files[filename].stat.isDirectory()) {
+            return this.files[filename];
+          } else {
+            return false;
+          }
+        } else {
+          return this.files[filename];
+        }
+      }
     };
 
     Dir.prototype.remove = function(filename) {
@@ -142,24 +210,31 @@
         return _this.files[filename];
       })();
       delete this.files[filename];
-      return [tmp];
+      return tmp;
     };
 
     Dir.prototype.rename = function(oldname, newname) {
       this.files[newname] = this.files[oldname];
       this.files[newname].path = File.prototype.path(this.path, newname);
       this.files[newname].name = newname;
+      this.files[newname].lastname = oldname;
       delete this.files[oldname];
-      return [File.prototype.path(this.path, oldname), this.files[newname].path, this.files[newname]];
+      return this.files[newname];
     };
 
     Dir.prototype.change = function(filename) {
-      var tmp;
-      if (!this.files[filename].stat.isDirectory() && (tmp = File.prototype["new"](File.prototype.path(this.path, filename))) && this.files[filename].stat.ctime.getTime() !== tmp.stat.ctime.getTime()) {
-        this.files[filename].stat = tmp.stat;
-        return [this.files[filename]];
+      var curr;
+      curr = File.prototype.stat(this.filepath(filename));
+      if (curr.isDirectory() && (this.files[filename].stat.atime.getTime() !== curr.atime.getTime() || this.files[filename].subdirs)) {
+        this.files[filename].stat = curr;
+        this.index.subdirs.push(filename);
+        return false;
+      } else if (!curr.isDirectory() && this.files[filename].stat.ctime.getTime() !== curr.ctime.getTime()) {
+        this.files[filename].stat = curr;
+        return this.files[filename];
+      } else {
+        return false;
       }
-      return false;
     };
 
     Dir.prototype.filenames = function() {
@@ -181,7 +256,7 @@
       _results = [];
       for (_i = 0, _len = filenames.length; _i < _len; _i++) {
         filename = filenames[_i];
-        _results.push(File.prototype.path(this.path, filename));
+        _results.push(this.filepath(filename));
       }
       return _results;
     };
@@ -200,7 +275,7 @@
     };
 
     Dir.prototype.compare = function() {
-      var created, current, existed, file, removed, subdir, subdirs, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _results;
+      var created, current, existed, file, removed, subdir, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _ref1, _results;
       existed = this.index.existed;
       current = this.index.current;
       created = current.diff(existed);
@@ -222,18 +297,16 @@
           this.invoke('change', file);
         }
       }
-      subdirs = this.directories();
       this.index.existed = (function(c) {
         return c;
       })(this.index.current);
-      if (subdirs.length > 0) {
-        _results = [];
-        for (_l = 0, _len3 = subdirs.length; _l < _len3; _l++) {
-          subdir = subdirs[_l];
-          _results.push(subdir.read(this.options).compare());
-        }
-        return _results;
+      _ref1 = this.index.subdirs;
+      _results = [];
+      for (_l = 0, _len3 = _ref1.length; _l < _len3; _l++) {
+        subdir = _ref1[_l];
+        _results.push(this.files[subdir].read(this.options).compare());
       }
+      return _results;
     };
 
     return Dir;
@@ -248,6 +321,8 @@
 
     Spier.prototype.step = 1;
 
+    Spier.prototype.memory = 10.0;
+
     Spier.prototype.handlers = {};
 
     Spier.prototype.options = {
@@ -257,7 +332,9 @@
       pattern: null,
       matchBase: false,
       existing: false,
-      dot: true
+      dot: true,
+      folders: false,
+      skipEmpty: false
     };
 
     Spier.instances = {};
@@ -315,11 +392,14 @@
         value = options[option];
         this.options[option] = option !== 'pattern' && option !== 'ignore' ? value : this.regexp(value, option);
       }
+      if (!this.options.folders) {
+        this.options.skipEmpty = false;
+      }
       return this;
     };
 
     Spier.prototype.regexp = function(pattern, name) {
-      var fIndex, regexp;
+      var fIndex;
       if (pattern instanceof RegExp || pattern === null) {
         return pattern;
       } else if (typeof pattern === 'string') {
@@ -327,11 +407,8 @@
           return null;
         }
         try {
-          if ((pattern.match(/^\/.*\/([igm]*)?$/) != null) && (fIndex = pattern.lastIndexOf('/'))) {
-            regexp = new RegExp(pattern.substr(1, fIndex - 1), pattern.substring(++fIndex));
-            console.log(pattern.substr(1, fIndex - 1));
-            console.log(regexp);
-            return regexp;
+          if ((pattern.match(/^r\/.*\/([igm]*)?$/) != null) && (fIndex = pattern.lastIndexOf('/'))) {
+            return new RegExp(pattern.substr(2, fIndex - 3), pattern.substring(fIndex + 1));
           } else {
             return minimatch.makeRe(pattern, {
               matchBase: this.options.matchBase,
@@ -342,7 +419,7 @@
           return this.shutdown("Pattern `" + pattern + "` is invalid. " + e.message);
         }
       } else {
-        return this.shutdown("Option `" + name + "` must be an instance of String or RegExp. " + (typeof pattern) + " given");
+        return this.shutdown("Option `" + name + "` must be an instance of String or RegExp. <" + (typeof pattern) + "> " + pattern + " given");
       }
     };
 
@@ -352,7 +429,7 @@
       if (!this.pause) {
         return this.timeout = setTimeout(function() {
           _this.lookout();
-          return _this.options.step++;
+          return _this.step++;
         }, this.delay);
       }
     };
