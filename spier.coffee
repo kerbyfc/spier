@@ -42,6 +42,7 @@ class Dir
 
   setup: =>
     @subdirs = false
+    @changed = null
     @files = {}
     @cache = {}
     @index =
@@ -52,6 +53,7 @@ class Dir
     @history = {}
 
   cleanup: ->
+    @index.existed = ((c)->c) @index.current
     @index.current = []
     @index.subdirs = []
     @cache = {}
@@ -94,8 +96,14 @@ class Dir
     false
 
   read: () =>
-    @cleanup()
-    @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
+    tmpStat = File::stat(@path)
+    @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null
+      @stat = tmpStat
+      @cleanup()
+      @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
+      true
+    else
+      false
     this
 
   add: (filename) ->
@@ -187,29 +195,29 @@ class Dir
 
   compare: ->
 
-    existed = @index.existed
-    current = @index.current
+    if @changed
 
-    created = current.diff existed
-    removed = existed.diff current
+      existed = @index.existed
+      current = @index.current
 
-    # console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
+      created = current.diff existed
+      removed = existed.diff current
 
-    if removed.length is created.length and created.length is 1
-      @invoke 'rename', removed[0], created[0]
-    else
-      @invoke 'create', file for file in created
-      @invoke 'remove', file for file in removed
-      @invoke 'change', file for file in existed.diff removed
+      # console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
 
-    @index.existed = ((c)->c) @index.current
+      if removed.length is created.length and created.length is 1
+        @invoke 'rename', removed[0], created[0]
+      else
+        @invoke 'create', file for file in created
+        @invoke 'remove', file for file in removed
+        @invoke 'change', file for file in existed.diff removed
 
     for subdir in @index.subdirs
       @files[subdir].read(@options).compare()
 
 class Spier
 
-  delay: 50
+  delay: 200
   pause: false
   step: 1
   memory: 10.0

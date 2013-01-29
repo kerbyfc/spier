@@ -22,7 +22,8 @@ function parseString(val) {
 
 program
     .version('1.4.0')
-    .option('-d, --in [directory]', 'specify a directory for watching', '.')
+    .usage('spy <target> [options]')
+    .option('-t, --in [directory]', 'specify a directory for watching', '.')
     .option('-p, --for <pattern>', 'filter files by pattern, regexp string or object', parseString, null)
     .option('-i, --ignoring <pattern>', 'ignore files by pattern, regexp string or object', parseString, null)
     .option('-m, --matchBase', 'matchBase flag for minimatch patterns')

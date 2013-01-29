@@ -6,6 +6,9 @@
   "bin": {
     "spy": "bin/spy"
   },
+  "scripts": {
+    "test": "./node_modules/mocha/bin/mocha test/run.coffee --debug"
+  },
   "keywords": [
     "spy",
     "watch"

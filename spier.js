@@ -77,6 +77,7 @@
 
     Dir.prototype.setup = function() {
       this.subdirs = false;
+      this.changed = null;
       this.files = {};
       this.cache = {};
       this.index = {
@@ -89,6 +90,9 @@
     };
 
     Dir.prototype.cleanup = function() {
+      this.index.existed = (function(c) {
+        return c;
+      })(this.index.current);
       this.index.current = [];
       this.index.subdirs = [];
       return this.cache = {};
@@ -136,15 +140,25 @@
     };
 
     Dir.prototype.read = function() {
-      var filename, _i, _len, _ref;
-      this.cleanup();
-      _ref = fs.readdirSync(this.path);
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        filename = _ref[_i];
-        if (__indexOf.call(this.index.ignored, filename) < 0) {
-          this.add(filename);
+      var filename, tmpStat;
+      tmpStat = File.prototype.stat(this.path);
+      this.changed = (function() {
+        var _i, _len, _ref;
+        if (this.stat.atime.getTime() !== tmpStat.atime.getTime() || this.changed === null) {
+          this.stat = tmpStat;
+          this.cleanup();
+          _ref = fs.readdirSync(this.path);
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            filename = _ref[_i];
+            if (__indexOf.call(this.index.ignored, filename) < 0) {
+              this.add(filename);
+            }
+          }
+          return true;
+        } else {
+          return false;
         }
-      }
+      }).call(this);
       return this;
     };
 
@@ -276,30 +290,29 @@
 
     Dir.prototype.compare = function() {
       var created, current, existed, file, removed, subdir, _i, _j, _k, _l, _len, _len1, _len2, _len3, _ref, _ref1, _results;
-      existed = this.index.existed;
-      current = this.index.current;
-      created = current.diff(existed);
-      removed = existed.diff(current);
-      if (removed.length === created.length && created.length === 1) {
-        this.invoke('rename', removed[0], created[0]);
-      } else {
-        for (_i = 0, _len = created.length; _i < _len; _i++) {
-          file = created[_i];
-          this.invoke('create', file);
-        }
-        for (_j = 0, _len1 = removed.length; _j < _len1; _j++) {
-          file = removed[_j];
-          this.invoke('remove', file);
-        }
-        _ref = existed.diff(removed);
-        for (_k = 0, _len2 = _ref.length; _k < _len2; _k++) {
-          file = _ref[_k];
-          this.invoke('change', file);
+      if (this.changed) {
+        existed = this.index.existed;
+        current = this.index.current;
+        created = current.diff(existed);
+        removed = existed.diff(current);
+        if (removed.length === created.length && created.length === 1) {
+          this.invoke('rename', removed[0], created[0]);
+        } else {
+          for (_i = 0, _len = created.length; _i < _len; _i++) {
+            file = created[_i];
+            this.invoke('create', file);
+          }
+          for (_j = 0, _len1 = removed.length; _j < _len1; _j++) {
+            file = removed[_j];
+            this.invoke('remove', file);
+          }
+          _ref = existed.diff(removed);
+          for (_k = 0, _len2 = _ref.length; _k < _len2; _k++) {
+            file = _ref[_k];
+            this.invoke('change', file);
+          }
         }
       }
-      this.index.existed = (function(c) {
-        return c;
-      })(this.index.current);
       _ref1 = this.index.subdirs;
       _results = [];
       for (_l = 0, _len3 = _ref1.length; _l < _len3; _l++) {
@@ -315,7 +328,7 @@
 
   Spier = (function() {
 
-    Spier.prototype.delay = 50;
+    Spier.prototype.delay = 200;
 
     Spier.prototype.pause = false;
 
