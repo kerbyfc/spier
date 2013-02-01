@@ -1,7 +1,6 @@
 .DS_Store
 node_modules
 .idea/
-testdir
 .npmignore
 bin/spytest.js
-comparator.coffee
+test/tmp
