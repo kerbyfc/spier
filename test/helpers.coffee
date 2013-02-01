@@ -48,6 +48,13 @@ global.__change = (_path, __path = __tmp(_path)) ->
       unless fs.statSync(file).isDirectory()
         __change(file); return
 
+global.__cleanup = ->
+  try wrench.rmdirSyncRecursive path.join TEMP_DIR
+
+global.__init = (opts) ->
+  @spier = new Spier
+    root: TEMP_DIR
+
 
 
 
