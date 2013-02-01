@@ -26,8 +26,7 @@
     "coffee-script": "1.4.0",
     "mocha": "1.8.1",
     "should": "1.2.1",
-    "sinon": "1.5.2",
-    "codo": "1.5.4"
+    "sinon": "1.5.2"
   },
   "main": "spier.js"
 }
