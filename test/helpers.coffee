@@ -4,6 +4,7 @@ global.sinon = require 'sinon'
 global.exec = require('child_process').exec
 global.shld = require 'should'
 global.glob = require 'glob'
+global.wrench = require 'wrench'
 
 global.TEST_DIR = __dirname
 global.TEMP_DIR = path.join __dirname, 'tmp'

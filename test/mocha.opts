@@ -5,6 +5,7 @@
 --colors
 --reporter spec
 --require should
+--require wrench
 --require coffee-script
 --compilers coffee:coffee-script
 --require test/helpers.coffee
