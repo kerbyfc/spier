@@ -1,10 +1,10 @@
 describe "Spier", ->
 
   beforeEach (done) ->
-    @timeout 3000
     __cleanup =>
       @engine = new TestEngine()
       console.log 'LOL'
+      @timeout 3000
       done()
 
   afterEach -> 

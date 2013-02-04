@@ -29,7 +29,7 @@ class TestEngine
   constructor: (opts) ->
 
     @timeouts = []
-    @delay = 500
+    @delay = 100
 
     opts = _.extend {}, opts, root: TEMP_DIR
     @spier = Spier.spy(opts)
