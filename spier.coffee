@@ -53,11 +53,12 @@ class Dir
       subdirs: []
     @history = {}
 
-  cleanup: ->
+  cleanup: (stat = null) ->
     @index.existed = ((c)->c) @index.current
     @index.current = []
     @index.subdirs = []
     @cache = {}
+    @stat = stat if stat?
   
   cached: (filename) ->
     @cache[filename] || File::new( File::path @path, filename, this )
@@ -98,9 +99,8 @@ class Dir
 
   read: =>
     tmpStat = File::stat(@path)
-    @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null
-      @stat = tmpStat
-      @cleanup()
+    @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null or true
+      @cleanup(tmpStat)
       @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
       true
     else
@@ -142,8 +142,6 @@ class Dir
 
         @parent.trigger 'create', this
 
-        # console.log "CREATE ", @name, 'for', @parent.path, @parent.history[@name]
-        
         # если принято не добавлять пустые директории а это директория не добавлять сразу
         unless @files[filename].stat.isDirectory()
           @files[filename]
@@ -205,7 +203,7 @@ class Dir
       created = current.diff existed
       removed = existed.diff current
 
-      # console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
+      console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
 
       if removed.length is created.length and created.length is 1
         @invoke 'rename', removed[0], created[0]
@@ -214,28 +212,18 @@ class Dir
         @invoke 'remove', file for file in removed
         @invoke 'change', file for file in existed.diff removed
 
+    console.log "SUBDIRS", @index.subdirs
+
     for subdir in @index.subdirs
       @files[subdir].read().compare()
 
 class Spier
 
-  delay: 200
+  delay: 50
   pause: false
 
   memory: 10.0
   handlers: {}
-
-  options:
-    id: null
-    root: null
-    ignore: null
-    pattern: null
-    matchBase: false
-    existing: false
-    dot: true
-    folders: false
-    skipEmpty: false
-
 
   @instances = {}
 
@@ -245,6 +233,13 @@ class Spier
 
   # configuring
   constructor: (options) ->
+
+    @handlers = 
+      create: ->
+      rename: ->
+      remove: ->
+      change: ->
+
     @configure(options) if options?
 
   spy: (options) ->
@@ -282,6 +277,17 @@ class Spier
 
   # specify instance options
   configure: (options = null) ->
+
+    @options =
+      id: null
+      root: null
+      ignore: null
+      pattern: null
+      matchBase: false
+      existing: false
+      dot: true
+      folders: false
+      skipEmpty: false
 
     # options object must be an instance of Object class
     unless typeof options is 'object'
@@ -334,15 +340,17 @@ class Spier
 
     @scope.read().compare()
 
+    console.log @options.id + ' -> ' + @step
+
     # repeat after delay
     unless @pause
       @timeout = setTimeout( =>
-        @lookout()
         @step++
+        @lookout()
       , @delay)
 
   # stop watching
-  pause: ->
+  stop: ->
     @timeout = clearTimeout(@timeout) || null
     @pause = true
 
@@ -362,3 +370,5 @@ class Spier
     process.exit(0)
 
 module.exports = Spier
+global.Dir = Dir
+global.File = File
