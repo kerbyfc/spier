@@ -27,7 +27,8 @@
     "mocha": "1.8.1",
     "should": "1.2.1",
     "sinon": "1.5.2",
-    "wrench": "1.4.4"
+    "wrench": "1.4.4",
+    "underscore": "1.4.4"
   },
   "main": "spier.js"
 }

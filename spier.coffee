@@ -41,6 +41,7 @@ class Dir
     @setup()
 
   setup: =>
+    @step = 0
     @subdirs = false
     @changed = null
     @files = {}
@@ -95,7 +96,7 @@ class Dir
     @index.ignored.push filename
     false
 
-  read: () =>
+  read: =>
     tmpStat = File::stat(@path)
     @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null
       @stat = tmpStat
@@ -104,6 +105,7 @@ class Dir
       true
     else
       false
+    @step++
     this
 
   add: (filename) ->
@@ -116,7 +118,7 @@ class Dir
     @history[filename].shift() if @history[filename].length > 20
 
   trigger: (event, file) ->
-    Spier.instances[@options.id].handlers[event](file)
+    Spier.instances[@options.id].handlers[event](file) if @step
     @archive(file.name, event, file)
 
   invoke: (event, data...) ->
@@ -213,13 +215,13 @@ class Dir
         @invoke 'change', file for file in existed.diff removed
 
     for subdir in @index.subdirs
-      @files[subdir].read(@options).compare()
+      @files[subdir].read().compare()
 
 class Spier
 
   delay: 200
   pause: false
-  step: 1
+
   memory: 10.0
   handlers: {}
 
@@ -233,6 +235,7 @@ class Spier
     dot: true
     folders: false
     skipEmpty: false
+
 
   @instances = {}
 
@@ -351,8 +354,7 @@ class Spier
 
   # register event handler for event such as create/rename/remove/change
   on: (event, handler) ->
-    @handlers[event] = =>
-      handler(arguments...) if @step > 0
+    @handlers[event] = handler
     this
 
   shutdown: (msg) ->

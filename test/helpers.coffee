@@ -5,6 +5,7 @@ global.exec = require('child_process').exec
 global.shld = require 'should'
 global.glob = require 'glob'
 global.wrench = require 'wrench'
+global._ = require 'underscore'
 
 global.TEST_DIR = __dirname
 global.TEMP_DIR = path.join __dirname, 'tmp'
@@ -48,12 +49,15 @@ global.__change = (_path, __path = __tmp(_path)) ->
       unless fs.statSync(file).isDirectory()
         __change(file); return
 
-global.__cleanup = ->
-  try wrench.rmdirSyncRecursive path.join TEMP_DIR
+global.__cleanup = (opts = {}) ->
+  try
+    wrench.rmdirSyncRecursive path.join TEMP_DIR
+    fs.mkdirSync TEMP_DIR
 
 global.__init = (opts) ->
-  @spier = new Spier
-    root: TEMP_DIR
+  __cleanup()
+  opts = _.extend {}, opts, root: TEMP_DIR
+  new Spier opts
 
 
 

@@ -67,7 +67,6 @@ spier.on( 'remove', function (file) {
     console.log( 'remove' + ' ' +  ctype(file) + ' ' + file.path );
 });
 spier.on( 'change', function (file) {
-    console.log('change', arguments);
     console.log( 'change' + ' ' +  ctype(file) + ' ' + file.path );
 });
 spier.on( 'rename', function (file) {
