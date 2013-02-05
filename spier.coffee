@@ -1,5 +1,6 @@
 fs = require 'fs'
 minimatch = require 'minimatch'
+_ = require 'underscore'
 
 Array.prototype.diff = (arr) ->
   this.filter(
@@ -230,12 +231,12 @@ class Spier
   # lookout loop delay
   delay: 50
 
-  # instantiatin
+  # instantiating
   constructor: (options) ->
     @configure(options) if options?
 
   # options setup
-  configure: (options = null) ->
+  configure: (options = _.extend ) ->
 
     @options =
       ignore: null

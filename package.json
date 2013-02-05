@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "commander": "1.1.1",
-    "minimatch": "0.2.9"
+    "minimatch": "0.2.9",
+    "underscore": "1.4.4"
   },
   "devDependencies": {
     "glob": "3.1.17",
@@ -27,8 +28,7 @@
     "mocha": "1.8.1",
     "should": "1.2.1",
     "sinon": "1.5.2",
-    "wrench": "1.4.4",
-    "underscore": "1.4.4"
+    "wrench": "1.4.4"
   },
   "main": "spier.js"
 }
