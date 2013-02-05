@@ -28,11 +28,7 @@ class Dir
 
   Dir::separator = if process.platform.match(/^win/)? then '\\' else '/'
 
-  options:
-    pattern: null
-    ignore: null
-
-  constructor: (path, stat, options, parent = null) ->
+  constructor: (path, stat, options, handlers, parent = null) ->
     @path = path
     @stat = stat
     @options = options
@@ -90,8 +86,8 @@ class Dir
 
   matchPattern: (path) ->
     if @options.debug
-      console.log "#{path} #{if (!@options.pattern? or @options.pattern.test path) then 'WAS' else 'WASN`T'} processed by #{@options.pattern} pattern"
-    !@options.pattern? or @options.pattern.test path
+      console.log "#{path} #{if (!@options.target? or @options.target.test path) then 'WAS' else 'WASN`T'} processed by #{@options.target} pattern"
+    !@options.target? or @options.target.test path
 
   ignore: (filename) ->
     @index.ignored.push filename
@@ -203,7 +199,7 @@ class Dir
       created = current.diff existed
       removed = existed.diff current
 
-      console.log @path, 'EXITED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
+      console.log @path, 'EXISTED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
 
       if removed.length is created.length and created.length is 1
         @invoke 'rename', removed[0], created[0]
@@ -219,30 +215,55 @@ class Dir
 
 class Spier
 
-  delay: 50
-  pause: false
+  # STATIC
 
-  memory: 10.0
-  handlers: {}
-
-  @instances = {}
+  # handler noop
+  @noop = (@e) ->
+    @fire = (file) -> console.log "#{@e} #{`file.stat.isDirectory() ? 'directory' : 'file'`} #{file.path}"
 
   # create new Spier instance
-  @spy = ->
-    new Spier(arguments...).spy()
+  @spy = (target, options)->
+    new Spier(options).spy(target)
+  
+  # PUBLIC
 
-  # configuring
+  # lookout loop delay
+  delay: 50
+
+  # instantiatin
   constructor: (options) ->
-
-    @handlers = 
-      create: ->
-      rename: ->
-      remove: ->
-      change: ->
-
     @configure(options) if options?
 
-  spy: (options) ->
+  # options setup
+  configure: (options = null) ->
+
+    @options =
+      ignore: null
+      target: null
+      strict: false
+      primary: false
+      folders: true
+      dotfiles: false
+      noops: false
+
+    # options object must be an instance of Object class
+    unless typeof options is 'object'
+      @shutdown "Options object missing"
+
+    # setup matchbase flag before regexp generation
+    @options.matchBase = options.matchBase || false
+
+    # validate option value if it is pattern
+    for option, value of options
+      @options[option] = unless option in ['target', 'ignore'] then value else @regexp(value, option)
+
+    @options.skipEmpty = false unless @options.folders
+
+    return this
+
+
+
+  spy: (target) ->
 
     # just start if instance have been already created
     return @start() if @options.id?
@@ -262,8 +283,7 @@ class Spier
     unless stat.isDirectory()
       @shutdown @options.in + ' is not a directory'
 
-    # create root folder object
-    @scope = new Dir @options.root, stat, @options
+    
 
     # create instance id
     @options.id = Math.random().toString().substr(2)
@@ -275,34 +295,12 @@ class Spier
 
     return this
 
-  # specify instance options
-  configure: (options = null) ->
+  root: ->
+    @root = @options.target.substr 0, @options.target.indexOf( '/' )
+    console.log "ROOT", @root
 
-    @options =
-      id: null
-      root: null
-      ignore: null
-      pattern: null
-      matchBase: false
-      existing: false
-      dot: true
-      folders: false
-      skipEmpty: false
 
-    # options object must be an instance of Object class
-    unless typeof options is 'object'
-      @shutdown "Options object missing"
-
-    # setup matchbase flag before regexp generation
-    @options.matchBase = options.matchBase || false
-
-    # validate option value if it is pattern
-    for option, value of options
-      @options[option] = unless option in ['pattern', 'ignore'] then value else @regexp(value, option)
-
-    @options.skipEmpty = false unless @options.folders
-
-    return this
+  
 
   # validate pattern and create regexp
   regexp: (pattern, name) ->
@@ -325,7 +323,7 @@ class Spier
         # create with minimatch
         else
           # new Minimatch object
-          return minimatch.makeRe pattern, {matchBase: @options.matchBase, dot: @options.dot}
+          return minimatch.makeRe pattern, {dot: @options.dotfiles}
 
       # something went wrong
       catch e
@@ -335,39 +333,28 @@ class Spier
     else
       @shutdown "Option `#{name}` must be an instance of String or RegExp. <#{typeof pattern}> #{pattern} given"
 
-  # look for directory changes
+  # look for directory changes after delay
   lookout: ->
-
-    @scope.read().compare()
-
-    console.log @options.id + ' -> ' + @step
-
-    # repeat after delay
     unless @pause
       @timeout = setTimeout( =>
-        @step++
+        @scope.read().compare()
         @lookout()
       , @delay)
 
   # stop watching
-  stop: ->
+  stop: ( @pause = true ) ->
     @timeout = clearTimeout(@timeout) || null
-    @pause = true
 
-  # start watching loop
-  start: ->
-    @step = if @options.existing then 1 else 0
-    @pause = false
-    @lookout()
+  # create root folder object, start watching loop 
+  start: ( @pause = false ) ->
+    @scope = new Dir( @options.root, stat, @options ).read().compare(); @lookout()
 
   # register event handler for event such as create/rename/remove/change
   on: (event, handler) ->
-    @handlers[event] = handler
-    this
+    @handlers[event] = handler; this
 
   shutdown: (msg) ->
-    console.log msg
-    process.exit(0)
+    console.error msg, process.exit(0)    
 
 module.exports = Spier
 global.Dir = Dir

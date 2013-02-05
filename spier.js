@@ -54,12 +54,7 @@
 
     Dir.prototype.separator = process.platform.match(/^win/) != null ? '\\' : '/';
 
-    Dir.prototype.options = {
-      pattern: null,
-      ignore: null
-    };
-
-    function Dir(path, stat, options, parent) {
+    function Dir(path, stat, options, handlers, parent) {
       if (parent == null) {
         parent = null;
       }
@@ -76,6 +71,7 @@
     }
 
     Dir.prototype.setup = function() {
+      this.step = 0;
       this.subdirs = false;
       this.changed = null;
       this.files = {};
@@ -89,13 +85,19 @@
       return this.history = {};
     };
 
-    Dir.prototype.cleanup = function() {
+    Dir.prototype.cleanup = function(stat) {
+      if (stat == null) {
+        stat = null;
+      }
       this.index.existed = (function(c) {
         return c;
       })(this.index.current);
       this.index.current = [];
       this.index.subdirs = [];
-      return this.cache = {};
+      this.cache = {};
+      if (stat != null) {
+        return this.stat = stat;
+      }
     };
 
     Dir.prototype.cached = function(filename) {
@@ -129,9 +131,9 @@
 
     Dir.prototype.matchPattern = function(path) {
       if (this.options.debug) {
-        console.log("" + path + " " + (!(this.options.pattern != null) || this.options.pattern.test(path) ? 'WAS' : 'WASN`T') + " processed by " + this.options.pattern + " pattern");
+        console.log("" + path + " " + (!(this.options.target != null) || this.options.target.test(path) ? 'WAS' : 'WASN`T') + " processed by " + this.options.target + " pattern");
       }
-      return !(this.options.pattern != null) || this.options.pattern.test(path);
+      return !(this.options.target != null) || this.options.target.test(path);
     };
 
     Dir.prototype.ignore = function(filename) {
@@ -144,9 +146,8 @@
       tmpStat = File.prototype.stat(this.path);
       this.changed = (function() {
         var _i, _len, _ref;
-        if (this.stat.atime.getTime() !== tmpStat.atime.getTime() || this.changed === null) {
-          this.stat = tmpStat;
-          this.cleanup();
+        if (this.stat.atime.getTime() !== tmpStat.atime.getTime() || this.changed === null || true) {
+          this.cleanup(tmpStat);
           _ref = fs.readdirSync(this.path);
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             filename = _ref[_i];
@@ -159,6 +160,7 @@
           return false;
         }
       }).call(this);
+      this.step++;
       return this;
     };
 
@@ -180,7 +182,9 @@
     };
 
     Dir.prototype.trigger = function(event, file) {
-      Spier.instances[this.options.id].handlers[event](file);
+      if (this.step) {
+        Spier.instances[this.options.id].handlers[event](file);
+      }
       return this.archive(file.name, event, file);
     };
 
@@ -295,6 +299,7 @@
         current = this.index.current;
         created = current.diff(existed);
         removed = existed.diff(current);
+        console.log(this.path, 'EXISTED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed);
         if (removed.length === created.length && created.length === 1) {
           this.invoke('rename', removed[0], created[0]);
         } else {
@@ -313,11 +318,12 @@
           }
         }
       }
+      console.log("SUBDIRS", this.index.subdirs);
       _ref1 = this.index.subdirs;
       _results = [];
       for (_l = 0, _len3 = _ref1.length; _l < _len3; _l++) {
         subdir = _ref1[_l];
-        _results.push(this.files[subdir].read(this.options).compare());
+        _results.push(this.files[subdir].read().compare());
       }
       return _results;
     };
@@ -328,37 +334,18 @@
 
   Spier = (function() {
 
-    Spier.prototype.delay = 200;
-
-    Spier.prototype.pause = false;
-
-    Spier.prototype.step = 1;
-
-    Spier.prototype.memory = 10.0;
-
-    Spier.prototype.handlers = {};
-
-    Spier.prototype.options = {
-      id: null,
-      root: null,
-      ignore: null,
-      pattern: null,
-      matchBase: false,
-      existing: false,
-      dot: true,
-      folders: false,
-      skipEmpty: false
+    Spier.noop = function(e) {
+      this.e = e;
+      return this.fire = function(file) {
+        return console.log("" + this.e + " " + file.stat.isDirectory() ? 'directory' : 'file' + " " + file.path);
+      };
     };
 
-    Spier.instances = {};
-
-    Spier.spy = function() {
-      return (function(func, args, ctor) {
-        ctor.prototype = func.prototype;
-        var child = new ctor, result = func.apply(child, args);
-        return Object(result) === result ? result : child;
-      })(Spier, arguments, function(){}).spy();
+    Spier.spy = function(target, options) {
+      return new Spier(options).spy(target);
     };
+
+    Spier.prototype.delay = 50;
 
     function Spier(options) {
       if (options != null) {
@@ -366,12 +353,40 @@
       }
     }
 
-    Spier.prototype.spy = function(options) {
+    Spier.prototype.configure = function(options) {
+      var option, value;
+      if (options == null) {
+        options = null;
+      }
+      this.options = {
+        ignore: null,
+        target: null,
+        strict: false,
+        primary: false,
+        folders: true,
+        dotfiles: false,
+        noops: false
+      };
+      if (typeof options !== 'object') {
+        this.shutdown("Options object missing");
+      }
+      this.options.matchBase = options.matchBase || false;
+      for (option in options) {
+        value = options[option];
+        this.options[option] = option !== 'target' && option !== 'ignore' ? value : this.regexp(value, option);
+      }
+      if (!this.options.folders) {
+        this.options.skipEmpty = false;
+      }
+      return this;
+    };
+
+    Spier.prototype.spy = function(target) {
       var stat;
       if (this.options.id != null) {
         return this.start();
       }
-      if (options != null) {
+      if (typeof options !== "undefined" && options !== null) {
         this.configure(options);
       }
       if (this.options.root == null) {
@@ -385,30 +400,15 @@
       if (!stat.isDirectory()) {
         this.shutdown(this.options["in"] + ' is not a directory');
       }
-      this.scope = new Dir(this.options.root, stat, this.options);
       this.options.id = Math.random().toString().substr(2);
       Spier.instances[this.options.id] = this;
       this.start();
       return this;
     };
 
-    Spier.prototype.configure = function(options) {
-      var option, value;
-      if (options == null) {
-        options = null;
-      }
-      if (typeof options !== 'object') {
-        this.shutdown("Options object missing");
-      }
-      this.options.matchBase = options.matchBase || false;
-      for (option in options) {
-        value = options[option];
-        this.options[option] = option !== 'pattern' && option !== 'ignore' ? value : this.regexp(value, option);
-      }
-      if (!this.options.folders) {
-        this.options.skipEmpty = false;
-      }
-      return this;
+    Spier.prototype.root = function() {
+      this.root = this.options.target.substr(0, this.options.target.indexOf('/'));
+      return console.log("ROOT", this.root);
     };
 
     Spier.prototype.regexp = function(pattern, name) {
@@ -424,8 +424,7 @@
             return new RegExp(pattern.substr(2, fIndex - 3), pattern.substring(fIndex + 1));
           } else {
             return minimatch.makeRe(pattern, {
-              matchBase: this.options.matchBase,
-              dot: this.options.dot
+              dot: this.options.dotfiles
             });
           }
         } catch (e) {
@@ -438,39 +437,32 @@
 
     Spier.prototype.lookout = function() {
       var _this = this;
-      this.scope.read().compare();
       if (!this.pause) {
         return this.timeout = setTimeout(function() {
-          _this.lookout();
-          return _this.step++;
+          _this.scope.read().compare();
+          return _this.lookout();
         }, this.delay);
       }
     };
 
-    Spier.prototype.pause = function() {
-      this.timeout = clearTimeout(this.timeout) || null;
-      return this.pause = true;
+    Spier.prototype.stop = function(pause) {
+      this.pause = pause != null ? pause : true;
+      return this.timeout = clearTimeout(this.timeout) || null;
     };
 
-    Spier.prototype.start = function() {
-      this.step = this.options.existing ? 1 : 0;
-      this.pause = false;
+    Spier.prototype.start = function(pause) {
+      this.pause = pause != null ? pause : false;
+      this.scope = new Dir(this.options.root, stat, this.options).read().compare();
       return this.lookout();
     };
 
     Spier.prototype.on = function(event, handler) {
-      var _this = this;
-      this.handlers[event] = function() {
-        if (_this.step > 0) {
-          return handler.apply(null, arguments);
-        }
-      };
+      this.handlers[event] = handler;
       return this;
     };
 
     Spier.prototype.shutdown = function(msg) {
-      console.log(msg);
-      return process.exit(0);
+      return console.error(msg, process.exit(0));
     };
 
     return Spier;
@@ -478,5 +470,9 @@
   })();
 
   module.exports = Spier;
+
+  global.Dir = Dir;
+
+  global.File = File;
 
 }).call(this);

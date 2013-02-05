@@ -2,17 +2,20 @@ describe "Spier", ->
 
   beforeEach (done) ->
     __cleanup =>
+      console.log "CLEANUP DONE, NEW ENGINE"
       @engine = new TestEngine()
-      console.log 'LOL'
       @timeout 3000
+      console.log "TIMEOUT 3000"
       done()
 
   afterEach -> 
+    console.log "@engine.destroy()"
     @engine.destroy()
     delete @engine
 
   after (done) -> 
     __cleanup => 
+      console.log "AFTER ALL CLEANUP"
       done()
 
   for type in ['common', 'cli']

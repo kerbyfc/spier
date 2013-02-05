@@ -85,27 +85,58 @@ class TestEngine
   _remove: (_path, fn, __path = @tmp(_path)) ->
     stat = fs.statSync __path
     if stat.isDirectory()
-      wrench.rmdirSyncRecursive path.join(__path, _file), fn
+      wrench.rmdirSyncRecursive path.join(__path, _file), (err, data) => 
+        if err?
+            console.log " > DIR #{__path} NOT REMOVED"
+          else
+            console.log " > DIR #{__path} REMOVED"
+          fn()
     else
-      fs.unlink __path, fn
+      fs.unlink __path, (err, data) =>
+        if err?
+          console.log " > FILE #{__path} NOT REMOVED"
+        else
+          console.log " > FILE #{__path} REMOVED"
+        fn()
 
   _create: (_path, fn, __path = @tmp(_path)) ->
     if __path.substring(__path.lastIndexOf('/') + 2).indexOf('.') > -1
-      fs.writeFile __path, "#{new Date().toString()}\n", fn
+      fs.writeFile __path, "#{new Date().toString()}\n", (err, data) =>
+        if err?
+          console.log " > FILE #{__path} NOT CREATED"
+        else
+          console.log " > FILE #{__path} CREATED"
+        fn()  
     else
-      fs.mkdir __path, '0777', fn
+      fs.mkdir __path, '0777', (err, data) => 
+        if err?
+          console.log " > DIR #{__path} NOT CREATED"
+        else
+          console.log " > DIR #{__path} CREATED"
+        fn()  
+
 
   _rename:(_path, _new, fn, __path = @tmp(_path), __new = @tmp(_new)) ->
-    fs.rename __path, __new, fn
+    fs.rename __path, __new, (err, data) => 
+      if err?
+        console.log " > #{__path} NOT RENAMED TO #{__new}", 
+      else
+        console.log " > #{__path} RENAMED TO #{__new}"
+      fn()
 
   _change: (_path, fn, __path = @tmp(_path)) -> 
     try
       stat = fs.statSync __path
     catch e
-      throw Error "File #{_path} doesn`t exist." 
+      throw Error " > FILE #{__path} DOESN`T EXISTS (CHANGE)" 
     
     unless stat.isDirectory()
-      fs.writeFile __path, "#{fs.readFileSync(__path, 'utf8')}#{new Date().toString()}\n", fn
+      fs.writeFile __path, "#{fs.readFileSync(__path, 'utf8')}#{new Date().toString()}\n", (err, data) =>
+        if err?
+          console.log " > FILE #{__path} NOT CHANGED"
+        else
+          console.log " > FILE #{__path} CHANGED"
+        fn()
     
     else
       for _file in fs.readDirSync __path

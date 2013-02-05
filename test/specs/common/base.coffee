@@ -3,8 +3,10 @@ context 'events handling', ->
   describe 'of simple.file creation', ->
 
     beforeEach ->
+      console.log "BEFORE EACH of simple.file creation"
       @engine.create 'simple.file', =>
         @args = => _.first @engine.$create.args
+        console.log "ON simple.file CREATION ARGS = ", @args()
 
     it 'should invoke create callback once', (done) ->
 
@@ -27,13 +29,22 @@ context 'events handling', ->
         file.should.have.property 'path', (path.join TEMP_DIR, 'simple.file')
         done()
 
+# - - - - -- - - - -- - - - -- - - - -- - - - -- - - - -- - - - - OK
+
+
+
   describe 'of simple_directory creation', ->
 
     beforeEach ->
+      console.log "BEFORE EACH of simple_directory creation"
       @engine.create 'simple_directory', (err, data) =>
         @args = => _.first @engine.$create.args
+        console.log "ON simple_directory CREATION ARGS = ", @args()
 
     it 'should invoke create callback once', (done) ->
+
+      @engine.on 'create', (file) => 
+        console.log " $$$$$$$$$$$$$$$$$$ ", file.name, @args()
 
       @engine.test => 
         @engine.$create.calledOnce.should.be.true
