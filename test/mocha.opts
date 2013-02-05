@@ -1,7 +1,7 @@
 --ignore-leaks
 --ui bdd
---timeout 500
---slow 75
+--timeout 3000
+--slow 2000
 --colors
 --reporter spec
 --require should
@@ -9,4 +9,3 @@
 --require coffee-script
 --compilers coffee:coffee-script
 --require test/helpers.coffee
---growl

@@ -3,50 +3,84 @@ rexp = require 'rexp'
 path = require 'path'
 _ = require 'underscore'
 
-Array.prototype.diff = (arr) ->
-  this.filter(
-    (i) -> 
-      return !(arr.indexOf(i) > -1)
-  )
-
 class sFile
 
-  @new = (_path, opts = {}) ->    
-    if (stat = Spier.stat _path) and (opts = _.extend {}, opts, stat:stat, name: path.basename _path) and stat.isDirectory() then new Dir(opts) else new File(opts)
+  @new = ( _path, opts = {} ) ->    
+    if ( stat = Spier.stat _path ) and ( opts = _.extend {}, opts, stat:stat, path:_path, name:path.basename(_path) ) and stat.isDirectory() then new sDir opts else new sFile opts
 
-  constructor: (opts = {}) ->
+  constructor: ( opts = {} ) ->
     _.extend @, opts
 
 global.sFile = sFile
 
 class sDir
 
-  constructor: (opts = {}) ->
-    _.extend @, opts
-    @setup()
+  defaults: files:{}, cache:{}, step:{}
 
-  setup: =>
-    @step = 0
-    @subdirs = false
-    @changed = null
-    @files = {}
-    @cache = {}
-    @index =
-      current: []
-      existed: []
-      ignored: []
-      subdirs: []
-    @history = {}
+  constructor: ( opts = {}) ->
+    @setup(opts)
+    
+  setup: (opts) -> 
+    _.extend @, @defaults, opts
 
-  cleanup: (stat = null) ->
-    @index.existed = ((c)->c) @index.current
-    @index.current = []
-    @index.subdirs = []
-    @cache = {}
-    @stat = stat if stat?
-  
-  cached: (filename) ->
+  reindex: ->
+    @index.existed = _.clone @index.current; @index.current = []
+
+  clearCache: (stat) ->
+    [@cache, @stat] = [{}, stat]
+
+  cleanup: (stat = @stat) ->
+    @reindex @clearCache(stat)
+    
+  get: (filename) ->
     @cache[filename] || sFile.new (path.join @path, filename), this
+  
+  isChanged: ->
+    if @lazy and (stat = Spier.stat @path) and stat.atime.getTime() isnt @stat.atime.getTime() then @cleanup(stat) else false
+
+  goDown: ->
+    @files[file].compare() for file in @index.files when file.stat.isDirectory()
+
+  filenames: ->
+    name for name, file of @files
+
+  paths: (filenames = @filenames()) ->
+    path.join @path, filename for filename in filenames
+
+  directories: ->
+    file for name, file of @files when file.stat.isDirectory()
+
+  read: ->
+    @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored; this
+
+  add: (filename) ->
+    @index.current.push filename if filename in @index.existed or @check(filename)
+
+  check: ->
+    if @isChanged() or !_.size @files then @compare() else @goDown()
+
+  compare: ->
+    if @involveRename() then @invoke 'rename', @step.rename[0], @step.create[0] else @handle @step.change = _.difference @index.existed, @step.remove
+
+  handle: ->
+    @invoke event, file for file in files for event, files of @step; @goDown()
+          
+  involveRename: ->
+    @difference().remove.length is @step.created.length and @step.created.length is 1
+
+  difference: ->
+    @read().step = create: _.difference( @index.current, @index.existed ), remove: _.difference( @index.existed, @index.current )  
+
+  isInIgnore: (_path) ->
+    @options.ignore? and @options.ignore.test _path
+
+  matchPattern: (_path) ->
+    !@options.target? or @options.target.test _path
+
+  ignore: (filename) ->
+    @index.ignored.push filename; false
+
+  # REFACTOR ---- 
 
   check: (filename) ->
 
@@ -61,38 +95,11 @@ class sDir
       @ignore(filename) # false
     else
       @cache[filename] = if stat.isDirectory()
-        new Dir(_path, stat, @options, this) # !false (true)
+        new sDir(_path, stat, @options, this) # !false (true)
       else
         new File(_path, stat) # !false (true)
 
-  isInIgnore: (_path) ->
-    if @options.debug
-      console.log "#{_path} #{if (@options.ignore? and @options.ignore.test _path) then 'WAS' else 'WASN`T'} ignored by #{@options.ignore} pattern"
-    @options.ignore? and @options.ignore.test _path
-
-  matchPattern: (path) ->
-    if @options.debug
-      console.log "#{_path} #{if (!@options.target? or @options.target.test _path) then 'WAS' else 'WASN`T'} processed by #{@options.target} pattern"
-    !@options.target? or @options.target.test _path
-
-  ignore: (filename) ->
-    @index.ignored.push filename
-    false
-
-  read: =>
-    tmpStat = Spier.stat @path
-    @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null or true
-      @cleanup(tmpStat)
-      @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
-      true
-    else
-      false
-    @step++
-    this
-
-  add: (filename) ->
-    if filename in @index.existed or @check(filename)
-      @index.current.push filename
+  # REFACTOR ---- 
 
   archive: (filename, event, file) ->
     @history[filename] ?= []
@@ -104,10 +111,10 @@ class sDir
     @archive(file.name, event, file)
 
   invoke: (event, data...) ->
-    if (file = @[event](data...))
+    if (file = @["_#{event}"](data...))
       @trigger event, file
 
-  create: (filename, file = false) ->
+  _create: (filename, file = false) ->
 
     @files[filename] = file || @cached(filename)
     
@@ -133,12 +140,12 @@ class sDir
       else
         @files[filename]
 
-  remove: (filename) ->
+  _remove: (filename) ->
     tmp = (=> @files[filename])()
     delete @files[filename]
     tmp
 
-  rename: (oldname, newname) ->
+  _rename: (oldname, newname) ->
     @files[newname] = @files[oldname]
     @files[newname].path = path.join @path, newname
     @files[newname].name = newname
@@ -146,7 +153,7 @@ class sDir
     delete @files[oldname]
     @files[newname]
 
-  change: (filename) ->
+  _change: (filename) ->
 
     curr = Spier.stat @path, filename
 
@@ -166,48 +173,20 @@ class sDir
     else
       false
 
-  filenames: ->
-    name for name, file of @files
-
-  paths: (filenames = @filenames()) ->
-    path.join @path, filename for filename in filenames
-
-  directories: ->
-    file for name, file of @files when file.stat.isDirectory()
-
-  compare: ->
-
-    if @changed
-
-      existed = @index.existed
-      current = @index.current
-
-      created = current.diff existed
-      removed = existed.diff current
-
-      console.log @path, 'EXISTED', existed, 'CURRENT', current, 'CREATED', created, 'REMOVED', removed
-
-      if removed.length is created.length and created.length is 1
-        @invoke 'rename', removed[0], created[0]
-      else
-        @invoke 'create', file for file in created
-        @invoke 'remove', file for file in removed
-        @invoke 'change', file for file in existed.diff removed
-
-    console.log "SUBDIRS", @index.subdirs
-
-    for subdir in @index.subdirs
-      @files[subdir].read().compare()
-
 global.sDir = sDir
+
+# handler noop
+class sNoop
+  
+  constructor: (e) -> 
+    @e = e
+  
+  fire: (file) => 
+    console.log "#{@event} #{`file.stat.isDirectory() ? 'directory' : 'file'`} #{file.path}" 
 
 class Spier
 
   # STATIC
-
-  # handler noop
-  @noop = (@e) ->
-    @fire = (file) -> console.log "#{@e} #{`file.stat.isDirectory() ? 'directory' : 'file'`} #{file.path}"
 
   # create new Spier instance
   @spy = (target, options)->
@@ -215,6 +194,9 @@ class Spier
 
   @stat = (slices...) ->
     fs.statSync(path.join slices...)
+
+  @shutdown = (msg = 'Unknown error') -> 
+    console.error msg; process.exit(0)
   
   # PUBLIC
 
@@ -229,41 +211,42 @@ class Spier
   delay: 50
 
   # instantiating
-  constructor: ( opts = {} ) ->
-    @configure( opts )
-
+  constructor: ( opts = {}, @options = {}, @handlers = {} ) ->
+    @configure opts
+    @handlers[event] = (new sNoop event).fire for event in ['create', 'remove', 'rename', 'change'] if @options.noops 
+        
   # options setup
-  configure: ( opts, @options = {} ) ->
-    @setup options, value for option, value of _.extend {}, @defaults, @flags, opts; this
+  configure: ( opts ) ->
+    @setup option, value for option, value of _.extend {}, @flags, @defaults, opts; this
 
   setup: ( option, value ) ->
     @options[ option ] = unless option in [ 'ignore', 'target' ] then value else rexp.create value, {dot: @options.dotfiles}
 
   spy: ( target = './**/*' ) ->
-    @setup 'target', @seton(target); @start()
-
-  seton: ( target ) -> 
-    @root = target.substr 0, target.indexOf( '/' ) if typeof target is 'string'; target
-
-  # stop watching
-  stop: ( @pause = true ) ->
-    @timeout = clearTimeout(@timeout) || null
+    @setup 'target', target; @start()
 
   # create root folder object, start watching loop
   start: ( @pause = false ) ->
-    @scope = new Dir( @options.root, Spier.stat @root, @options ).read().compare(); @lookout()
+    @scope = sFile.new '.', options:@options; @lookout()
+
+  # stop watching
+  stop: ( @pause = true ) ->
+    @timeout = clearTimeout(@timeout) || null; this
 
   # look for directory changes after delay
   lookout: ->
-    @timeout = setTimeout( => 
-      @lookout @scope.read().compare()
-    ,@delay); this
+    unless @pause
+      @timeout = setTimeout => 
+        @scope.check()
+        @lookout()
+      , @delay
+    this
 
   # register event handler for event such as create/rename/remove/change
   on: (event, handler) ->
     @handlers[event] = handler; this
 
-  shutdown: (msg) ->
-    console.error msg; process.exit(0)    
+  off: (event) -> 
+    delete @handlers[event];
 
 module.exports = Spier
