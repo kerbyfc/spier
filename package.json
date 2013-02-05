@@ -18,8 +18,9 @@
     "url": "https://github.com/kerbyfc/spier.git"
   },
   "dependencies": {
+    "path": "0.4.9",
     "commander": "1.1.1",
-    "minimatch": "0.2.9",
+    "rexp": "0.0.1",
     "underscore": "1.4.4"
   },
   "devDependencies": {

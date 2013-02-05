@@ -3,6 +3,7 @@ context 'events handling', ->
   describe 'of simple.file creation', ->
 
     beforeEach ->
+      @engine = new TestEngine()
       console.log "BEFORE EACH of simple.file creation"
       @engine.create 'simple.file', =>
         @args = => _.first @engine.$create.args
@@ -36,6 +37,7 @@ context 'events handling', ->
   describe 'of simple_directory creation', ->
 
     beforeEach ->
+      @engine = new TestEngine()
       console.log "BEFORE EACH of simple_directory creation"
       @engine.create 'simple_directory', (err, data) =>
         @args = => _.first @engine.$create.args

@@ -3,7 +3,6 @@ describe "Spier", ->
   beforeEach (done) ->
     __cleanup =>
       console.log "CLEANUP DONE, NEW ENGINE"
-      @engine = new TestEngine()
       @timeout 3000
       console.log "TIMEOUT 3000"
       done()

@@ -1,5 +1,6 @@
 fs = require 'fs'
-minimatch = require 'minimatch'
+rexp = require 'rexp'
+path = require 'path'
 _ = require 'underscore'
 
 Array.prototype.diff = (arr) ->
@@ -8,33 +9,20 @@ Array.prototype.diff = (arr) ->
       return !(arr.indexOf(i) > -1)
   )
 
-class File
+class sFile
 
-  File::stat = (path) ->
-    fs.statSync(path)
+  @new = (_path, opts = {}) ->    
+    if (stat = Spier.stat _path) and (opts = _.extend {}, opts, stat:stat, name: path.basename _path) and stat.isDirectory() then new Dir(opts) else new File(opts)
 
-  File::path = (parts...) ->
-    parts.join Dir::separator
+  constructor: (opts = {}) ->
+    _.extend @, opts
 
-  File::new = (path, options = {}, parent) ->
-    stat = File::stat path
-    if stat.isDirectory() then new Dir(path, stat, options) else new File(path, stat)
+global.sFile = sFile
 
-  constructor: (path, stat) ->
-    @path = path
-    @name = @path.split(Dir::separator).slice(-1)[0]
-    @stat = stat
+class sDir
 
-class Dir
-
-  Dir::separator = if process.platform.match(/^win/)? then '\\' else '/'
-
-  constructor: (path, stat, options, handlers, parent = null) ->
-    @path = path
-    @stat = stat
-    @options = options
-    @parent = parent
-    @name = @path.split(Dir::separator).slice(-1)[0]
+  constructor: (opts = {}) ->
+    _.extend @, opts
     @setup()
 
   setup: =>
@@ -58,44 +46,41 @@ class Dir
     @stat = stat if stat?
   
   cached: (filename) ->
-    @cache[filename] || File::new( File::path @path, filename, this )
-
-  filepath: (filename) ->
-    File::path @path, filename
+    @cache[filename] || sFile.new (path.join @path, filename), this
 
   check: (filename) ->
 
-    path = @filepath filename
+    _path = path.join @path, filename
 
-    if @isInIgnore(path)
+    if @isInIgnore(_path)
       return @ignore(filename) # false
     
-    stat = File::stat(path)
+    stat = Spier.stat _path
 
-    if !@matchPattern(path) and !stat.isDirectory()
+    if !@matchPattern(_path) and !stat.isDirectory()
       @ignore(filename) # false
     else
       @cache[filename] = if stat.isDirectory()
-        new Dir(path, stat, @options, this) # !false (true)
+        new Dir(_path, stat, @options, this) # !false (true)
       else
-        new File(path, stat) # !false (true)
+        new File(_path, stat) # !false (true)
 
-  isInIgnore: (path) ->
+  isInIgnore: (_path) ->
     if @options.debug
-      console.log "#{path} #{if (@options.ignore? and @options.ignore.test path) then 'WAS' else 'WASN`T'} ignored by #{@options.ignore} pattern"
-    @options.ignore? and @options.ignore.test path
+      console.log "#{_path} #{if (@options.ignore? and @options.ignore.test _path) then 'WAS' else 'WASN`T'} ignored by #{@options.ignore} pattern"
+    @options.ignore? and @options.ignore.test _path
 
   matchPattern: (path) ->
     if @options.debug
-      console.log "#{path} #{if (!@options.target? or @options.target.test path) then 'WAS' else 'WASN`T'} processed by #{@options.target} pattern"
-    !@options.target? or @options.target.test path
+      console.log "#{_path} #{if (!@options.target? or @options.target.test _path) then 'WAS' else 'WASN`T'} processed by #{@options.target} pattern"
+    !@options.target? or @options.target.test _path
 
   ignore: (filename) ->
     @index.ignored.push filename
     false
 
   read: =>
-    tmpStat = File::stat(@path)
+    tmpStat = Spier.stat @path
     @changed = if @stat.atime.getTime() isnt tmpStat.atime.getTime() or @changed is null or true
       @cleanup(tmpStat)
       @add filename for filename in fs.readdirSync(@path) when filename not in @index.ignored
@@ -155,7 +140,7 @@ class Dir
 
   rename: (oldname, newname) ->
     @files[newname] = @files[oldname]
-    @files[newname].path = File::path @path, newname
+    @files[newname].path = path.join @path, newname
     @files[newname].name = newname
     @files[newname].lastname = oldname
     delete @files[oldname]
@@ -163,7 +148,7 @@ class Dir
 
   change: (filename) ->
 
-    curr = File::stat @filepath(filename)
+    curr = Spier.stat @path, filename
 
     if curr.isDirectory() and (@files[filename].stat.atime.getTime() isnt curr.atime.getTime() or @files[filename].subdirs)
 
@@ -184,8 +169,8 @@ class Dir
   filenames: ->
     name for name, file of @files
 
-  filepaths: (filenames = @filenames()) ->
-    @filepath filename for filename in filenames
+  paths: (filenames = @filenames()) ->
+    path.join @path, filename for filename in filenames
 
   directories: ->
     file for name, file of @files when file.stat.isDirectory()
@@ -214,6 +199,8 @@ class Dir
     for subdir in @index.subdirs
       @files[subdir].read().compare()
 
+global.sDir = sDir
+
 class Spier
 
   # STATIC
@@ -225,138 +212,58 @@ class Spier
   # create new Spier instance
   @spy = (target, options)->
     new Spier(options).spy(target)
+
+  @stat = (slices...) ->
+    fs.statSync(path.join slices...)
   
   # PUBLIC
+
+  defaults: 
+    ignore: null 
+    target: null
+
+  # flags specify searching strategy and event handling
+  flags: { strict:false, primary:false, folders:false, dotfiles: false, noops: false }
 
   # lookout loop delay
   delay: 50
 
   # instantiating
-  constructor: (options) ->
-    @configure(options) if options?
+  constructor: ( opts = {} ) ->
+    @configure( opts )
 
   # options setup
-  configure: (options = _.extend ) ->
+  configure: ( opts, @options = {} ) ->
+    @setup options, value for option, value of _.extend {}, @defaults, @flags, opts; this
 
-    @options =
-      ignore: null
-      target: null
-      strict: false
-      primary: false
-      folders: true
-      dotfiles: false
-      noops: false
+  setup: ( option, value ) ->
+    @options[ option ] = unless option in [ 'ignore', 'target' ] then value else rexp.create value, {dot: @options.dotfiles}
 
-    # options object must be an instance of Object class
-    unless typeof options is 'object'
-      @shutdown "Options object missing"
+  spy: ( target = './**/*' ) ->
+    @setup 'target', @seton(target); @start()
 
-    # setup matchbase flag before regexp generation
-    @options.matchBase = options.matchBase || false
-
-    # validate option value if it is pattern
-    for option, value of options
-      @options[option] = unless option in ['target', 'ignore'] then value else @regexp(value, option)
-
-    @options.skipEmpty = false unless @options.folders
-
-    return this
-
-
-
-  spy: (target) ->
-
-    # just start if instance have been already created
-    return @start() if @options.id?
-
-    @configure(options) if options?
-
-    # check nessesary params
-    unless @options.root?
-      @shutdown 'Specify directory path for spying. Use spy --help'
-
-    # check file access TODO use file system utilities for this
-    try
-      stat = File::stat @options.root
-    catch e
-      @shutdown @options.root + ' doesn`t exists'
-
-    unless stat.isDirectory()
-      @shutdown @options.in + ' is not a directory'
-
-    
-
-    # create instance id
-    @options.id = Math.random().toString().substr(2)
-
-    # register this instance
-    Spier.instances[@options.id] = this
-
-    @start()
-
-    return this
-
-  root: ->
-    @root = @options.target.substr 0, @options.target.indexOf( '/' )
-    console.log "ROOT", @root
-
-
-  
-
-  # validate pattern and create regexp
-  regexp: (pattern, name) ->
-
-    # just return RegExp object if he was passed
-    if pattern instanceof RegExp or pattern is null
-      return pattern
-
-    # create RegExp from string
-    else if typeof pattern is 'string'
-
-      return null unless pattern.length
-
-      # try to create RegExp from string
-      try
-        # if string looks like regexp
-        if pattern.match( /^r\/.*\/([igm]*)?$/ )? and (fIndex = pattern.lastIndexOf('/'))
-          return new RegExp pattern.substr( 2, fIndex-3), pattern.substring(fIndex+1)
-
-        # create with minimatch
-        else
-          # new Minimatch object
-          return minimatch.makeRe pattern, {dot: @options.dotfiles}
-
-      # something went wrong
-      catch e
-        @shutdown "Pattern `#{pattern}` is invalid. #{e.message}"
-
-    # invalid pattern type
-    else
-      @shutdown "Option `#{name}` must be an instance of String or RegExp. <#{typeof pattern}> #{pattern} given"
-
-  # look for directory changes after delay
-  lookout: ->
-    unless @pause
-      @timeout = setTimeout( =>
-        @scope.read().compare()
-        @lookout()
-      , @delay)
+  seton: ( target ) -> 
+    @root = target.substr 0, target.indexOf( '/' ) if typeof target is 'string'; target
 
   # stop watching
   stop: ( @pause = true ) ->
     @timeout = clearTimeout(@timeout) || null
 
-  # create root folder object, start watching loop 
+  # create root folder object, start watching loop
   start: ( @pause = false ) ->
-    @scope = new Dir( @options.root, stat, @options ).read().compare(); @lookout()
+    @scope = new Dir( @options.root, Spier.stat @root, @options ).read().compare(); @lookout()
+
+  # look for directory changes after delay
+  lookout: ->
+    @timeout = setTimeout( => 
+      @lookout @scope.read().compare()
+    ,@delay); this
 
   # register event handler for event such as create/rename/remove/change
   on: (event, handler) ->
     @handlers[event] = handler; this
 
   shutdown: (msg) ->
-    console.error msg, process.exit(0)    
+    console.error msg; process.exit(0)    
 
 module.exports = Spier
-global.Dir = Dir
-global.File = File

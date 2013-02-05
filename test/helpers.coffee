@@ -26,13 +26,13 @@ global.__cleanup = (done) ->
 
 class TestEngine
 
-  constructor: (opts) ->
+  constructor: (opts = {}) ->
 
     @timeouts = []
     @delay = 100
 
-    opts = _.extend {}, opts, root: TEMP_DIR
-    @spier = Spier.spy(opts)
+    opts = _.extend {}, opts
+    @spier = new Spier(opts).spy(TEMP_DIR)
     @callbacks = {}
 
     @on event, ((file) -> undefined) for event in ['create', 'rename', 'remove', 'change']
