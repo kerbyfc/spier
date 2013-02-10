@@ -61,6 +61,7 @@
       this.index.ignored = [];
       this.index.current = [];
       this.index.existed = [];
+      this.index.subdirs = [];
     }
 
     sDir.prototype.setup = function(opts) {
@@ -106,7 +107,7 @@
 
     sDir.prototype.goDown = function() {
       var file, _i, _len, _ref, _results;
-      _ref = this.index.files;
+      _ref = this.files;
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         file = _ref[_i];
@@ -202,13 +203,13 @@
     };
 
     sDir.prototype.involveRename = function() {
-      return this.difference().remove.length === this.step.created.length && this.step.created.length === 1;
+      return this.difference().removed.length === this.step.created.length && this.step.created.length === 1;
     };
 
     sDir.prototype.difference = function() {
       return this.read().step = {
-        create: _.difference(this.index.current, this.index.existed),
-        remove: _.difference(this.index.existed, this.index.current)
+        created: _.difference(this.index.current, this.index.existed),
+        removed: _.difference(this.index.existed, this.index.current)
       };
     };
 
@@ -265,6 +266,7 @@
     sDir.prototype.invoke = function() {
       var data, event, file;
       event = arguments[0], data = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
+      event = event.substring(0, event.length - 1);
       if ((file = this["_" + event].apply(this, data))) {
         console.log('trigger', event, file.name);
         return this.trigger(event, file);
@@ -275,7 +277,7 @@
       if (file == null) {
         file = false;
       }
-      this.files[filename] = file || this.cached(filename);
+      this.files[filename] = file || this.get(filename);
       if (this.files[filename].stat.isDirectory()) {
         this.index.subdirs.push(filename);
         this.subdirs = true;

@@ -23,6 +23,7 @@ class sDir
     @index.ignored = []
     @index.current = []
     @index.existed = []
+    @index.subdirs = []
     
   setup: (opts) -> 
     @[prop] = val for prop, val of _.extend @defaults, opts
@@ -43,7 +44,7 @@ class sDir
     if @lazy and (stat = Spier.stat @path) and stat.atime.getTime() isnt @stat.atime.getTime() then @cleanup(stat) else false
 
   goDown: ->
-    @files[file].compare() for file in @index.files when file.stat.isDirectory()
+    @files[file].compare() for file in @files when file.stat.isDirectory()
 
   filenames: ->
     name for name, file of @files
@@ -67,13 +68,15 @@ class sDir
     if @involveRename() then @invoke 'rename', @step.rename[0], @step.create[0] else @handle @step.change = _.difference @index.existed, @step.remove
 
   handle: ->
-    @invoke event, file for file in files for event, files of @step; @goDown()
+    for event, files of @step
+      @invoke event, file for file in files
+    @goDown()
           
   involveRename: -> # TODO here is error
-    @difference().remove.length is @step.created.length and @step.created.length is 1
+    @difference().removed.length is @step.created.length and @step.created.length is 1
 
   difference: ->
-    @read().step = create: _.difference( @index.current, @index.existed ), remove: _.difference( @index.existed, @index.current )  
+    @read().step = created: _.difference( @index.current, @index.existed ), removed: _.difference( @index.existed, @index.current )
 
   isInIgnore: (_path) ->
     @options.ignore? and @options.ignore.test _path
@@ -115,13 +118,14 @@ class sDir
     @archive(file.name, event, file)
 
   invoke: (event, data...) ->
+    event = event.substring(0, event.length-1)
     if (file = @["_#{event}"](data...))
       console.log 'trigger', event, file.name
       @trigger event, file
 
   _create: (filename, file = false) ->
 
-    @files[filename] = file || @cached(filename)
+    @files[filename] = file || @get(filename)
     
     if @files[filename].stat.isDirectory()
       @index.subdirs.push filename
