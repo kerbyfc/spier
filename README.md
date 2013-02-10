@@ -6,7 +6,7 @@ Spier <font size="2">1.1</font>
 - create
 - remove
 - change
-- rename
+- rename   
 
 <br />
 

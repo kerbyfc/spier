@@ -17,11 +17,15 @@ class sDir
 
   defaults: files:{}, cache:{}, step:{}
 
-  constructor: ( opts = {}) ->
+  constructor: ( opts = {} ) ->
     @setup(opts)
+    @index = {}
+    @index.ignored = []
+    @index.current = []
+    @index.existed = []
     
   setup: (opts) -> 
-    _.extend @, @defaults, opts
+    @[prop] = val for prop, val of _.extend @defaults, opts
 
   reindex: ->
     @index.existed = _.clone @index.current; @index.current = []
@@ -65,7 +69,7 @@ class sDir
   handle: ->
     @invoke event, file for file in files for event, files of @step; @goDown()
           
-  involveRename: ->
+  involveRename: -> # TODO here is error
     @difference().remove.length is @step.created.length and @step.created.length is 1
 
   difference: ->
@@ -95,7 +99,7 @@ class sDir
       @ignore(filename) # false
     else
       @cache[filename] = if stat.isDirectory()
-        new sDir(_path, stat, @options, this) # !false (true)
+        new sDir options: @options, path:_path, stat:stat, parent:this # !false (true)
       else
         new File(_path, stat) # !false (true)
 
@@ -112,6 +116,7 @@ class sDir
 
   invoke: (event, data...) ->
     if (file = @["_#{event}"](data...))
+      console.log 'trigger', event, file.name
       @trigger event, file
 
   _create: (filename, file = false) ->
@@ -237,7 +242,7 @@ class Spier
   lookout: ->
     unless @pause
       @timeout = setTimeout => 
-        @scope.check()
+        @scope.compare()
         @lookout()
       , @delay
     this

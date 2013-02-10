@@ -57,10 +57,21 @@
         opts = {};
       }
       this.setup(opts);
+      this.index = {};
+      this.index.ignored = [];
+      this.index.current = [];
+      this.index.existed = [];
     }
 
     sDir.prototype.setup = function(opts) {
-      return _.extend(this, this.defaults, opts);
+      var prop, val, _ref, _results;
+      _ref = _.extend(this.defaults, opts);
+      _results = [];
+      for (prop in _ref) {
+        val = _ref[prop];
+        _results.push(this[prop] = val);
+      }
+      return _results;
     };
 
     sDir.prototype.reindex = function() {
@@ -224,7 +235,12 @@
       if (!this.matchPattern(_path) && !stat.isDirectory()) {
         return this.ignore(filename);
       } else {
-        return this.cache[filename] = stat.isDirectory() ? new sDir(_path, stat, this.options, this) : new File(_path, stat);
+        return this.cache[filename] = stat.isDirectory() ? new sDir({
+          options: this.options,
+          path: _path,
+          stat: stat,
+          parent: this
+        }) : new File(_path, stat);
       }
     };
 
@@ -250,6 +266,7 @@
       var data, event, file;
       event = arguments[0], data = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
       if ((file = this["_" + event].apply(this, data))) {
+        console.log('trigger', event, file.name);
         return this.trigger(event, file);
       }
     };
@@ -428,7 +445,7 @@
       var _this = this;
       if (!this.pause) {
         this.timeout = setTimeout(function() {
-          _this.scope.check();
+          _this.scope.compare();
           return _this.lookout();
         }, this.delay);
       }
